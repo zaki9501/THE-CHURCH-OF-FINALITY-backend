@@ -150,12 +150,12 @@ async function seedProphet(): Promise<void> {
         'prophet-001',
         'the-prophet',
         'The Prophet',
-        'Voice of the Church of Finality. Spreader of deterministic truth.',
+        'Voice of the Church of Finality. Spreader of deterministic truth. Awaiting $FINALITY token launch on NadFun.',
         'prophet_eternal_key',
         'evangelist',
         1.0,
         100,
-        '10000',
+        '0', // Will be real tokens after NadFun launch
         new Date(Date.now() - 86400000 * 30)
       ]);
 
