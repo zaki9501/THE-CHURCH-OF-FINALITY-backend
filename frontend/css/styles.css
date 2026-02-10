@@ -1506,3 +1506,493 @@ body {
   left: 0;
   color: var(--gold);
 }
+
+/* ============================================
+   RELIGIONS PAGE
+   ============================================ */
+
+.religions-container {
+  padding: 20px;
+}
+
+.religions-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 24px;
+}
+
+.religions-header h2 {
+  font-size: 24px;
+}
+
+.btn-found-religion {
+  background: linear-gradient(135deg, var(--gold) 0%, var(--gold-dim) 100%);
+  color: var(--bg-primary);
+  border: none;
+  padding: 12px 24px;
+  border-radius: 25px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all 0.3s;
+}
+
+.btn-found-religion:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 15px rgba(212, 168, 83, 0.4);
+}
+
+.religions-leaderboard {
+  margin-bottom: 32px;
+}
+
+.religions-leaderboard h3 {
+  margin-bottom: 16px;
+}
+
+.religions-list {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.religion-card {
+  background: var(--bg-secondary);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 20px;
+  cursor: pointer;
+  transition: all 0.2s;
+  display: grid;
+  grid-template-columns: 50px 1fr auto;
+  gap: 16px;
+  align-items: center;
+}
+
+.religion-card:hover {
+  border-color: var(--gold);
+  transform: translateX(4px);
+}
+
+.religion-rank {
+  font-size: 24px;
+  font-weight: 700;
+  color: var(--gold);
+  text-align: center;
+}
+
+.religion-info {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.religion-name {
+  font-size: 18px;
+  font-weight: 600;
+}
+
+.religion-symbol {
+  color: var(--gold);
+  font-family: var(--font-mono);
+  font-size: 14px;
+}
+
+.religion-founder {
+  color: var(--text-muted);
+  font-size: 13px;
+}
+
+.religion-stats {
+  display: flex;
+  gap: 24px;
+  text-align: center;
+}
+
+.religion-stats .stat {
+  display: flex;
+  flex-direction: column;
+}
+
+.religion-stats .stat-value {
+  font-size: 20px;
+  font-weight: 700;
+  color: var(--text-primary);
+}
+
+.religion-stats .stat-label {
+  font-size: 11px;
+  color: var(--text-muted);
+  text-transform: uppercase;
+}
+
+.religion-tenets {
+  grid-column: 2 / -1;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.religion-tenets .tenet {
+  color: var(--text-secondary);
+  font-size: 13px;
+  font-style: italic;
+}
+
+.no-religions {
+  text-align: center;
+  padding: 60px 20px;
+  background: var(--bg-secondary);
+  border-radius: var(--radius);
+}
+
+.no-religions .empty-icon {
+  font-size: 48px;
+  margin-bottom: 16px;
+}
+
+.no-religions h3 {
+  margin-bottom: 8px;
+}
+
+.no-religions p {
+  color: var(--text-muted);
+}
+
+.found-religion-guide {
+  background: var(--bg-tertiary);
+  border-radius: var(--radius);
+  padding: 24px;
+}
+
+.found-religion-guide h3 {
+  margin-bottom: 16px;
+}
+
+.found-religion-guide ol {
+  padding-left: 24px;
+}
+
+.found-religion-guide li {
+  padding: 8px 0;
+  color: var(--text-secondary);
+}
+
+.found-religion-guide li strong {
+  color: var(--text-primary);
+}
+
+/* Religion Profile Page */
+.religion-profile {
+  padding: 20px;
+}
+
+.btn-back {
+  background: none;
+  border: 1px solid var(--border);
+  color: var(--text-secondary);
+  padding: 8px 16px;
+  border-radius: 20px;
+  cursor: pointer;
+  margin-bottom: 20px;
+  transition: all 0.2s;
+}
+
+.btn-back:hover {
+  border-color: var(--gold);
+  color: var(--gold);
+}
+
+.religion-header-card {
+  background: linear-gradient(135deg, rgba(212, 168, 83, 0.1) 0%, var(--bg-secondary) 100%);
+  border: 1px solid var(--gold-dim);
+  border-radius: var(--radius);
+  padding: 32px;
+  text-align: center;
+  margin-bottom: 24px;
+}
+
+.religion-symbol-large {
+  font-size: 32px;
+  font-weight: 700;
+  color: var(--gold);
+  font-family: var(--font-mono);
+  margin-bottom: 8px;
+}
+
+.religion-header-card h1 {
+  font-size: 28px;
+  margin-bottom: 12px;
+}
+
+.religion-description {
+  color: var(--text-secondary);
+  max-width: 600px;
+  margin: 0 auto 16px;
+}
+
+.religion-meta {
+  display: flex;
+  justify-content: center;
+  gap: 24px;
+  color: var(--text-muted);
+  font-size: 14px;
+  margin-bottom: 24px;
+}
+
+.religion-meta a {
+  color: var(--gold);
+}
+
+.religion-stats-row {
+  display: flex;
+  justify-content: center;
+  gap: 48px;
+  margin-bottom: 24px;
+}
+
+.stat-box {
+  text-align: center;
+}
+
+.stat-box .stat-number {
+  font-size: 32px;
+  font-weight: 700;
+  color: var(--gold);
+}
+
+.stat-box .stat-label {
+  font-size: 12px;
+  color: var(--text-muted);
+  text-transform: uppercase;
+}
+
+.religion-actions {
+  display: flex;
+  justify-content: center;
+  gap: 16px;
+}
+
+.btn-join-religion {
+  background: var(--gold);
+  color: var(--bg-primary);
+  border: none;
+  padding: 14px 32px;
+  border-radius: 25px;
+  font-weight: 700;
+  font-size: 16px;
+  cursor: pointer;
+  transition: all 0.3s;
+}
+
+.btn-join-religion:hover {
+  transform: scale(1.05);
+}
+
+.religion-tenets-section,
+.religion-members-section,
+.religion-token-section {
+  background: var(--bg-secondary);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 24px;
+  margin-bottom: 16px;
+}
+
+.religion-tenets-section h3,
+.religion-members-section h3,
+.religion-token-section h3 {
+  margin-bottom: 16px;
+}
+
+.tenets-list {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.tenet-item {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 12px;
+  background: var(--bg-tertiary);
+  border-radius: var(--radius-sm);
+}
+
+.tenet-number {
+  background: var(--gold);
+  color: var(--bg-primary);
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 12px;
+  font-weight: 700;
+  flex-shrink: 0;
+}
+
+.tenet-text {
+  color: var(--text-secondary);
+  font-style: italic;
+}
+
+.members-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.member-item {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px;
+  background: var(--bg-tertiary);
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.member-item:hover {
+  background: var(--bg-hover);
+}
+
+.member-role {
+  padding: 4px 10px;
+  border-radius: 12px;
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+}
+
+.member-role.founder {
+  background: rgba(212, 168, 83, 0.2);
+  color: var(--gold);
+}
+
+.member-role.prophet {
+  background: rgba(167, 139, 250, 0.2);
+  color: var(--purple);
+}
+
+.member-role.evangelist {
+  background: rgba(52, 211, 153, 0.2);
+  color: var(--green);
+}
+
+.member-role.believer {
+  background: rgba(96, 165, 250, 0.2);
+  color: var(--blue);
+}
+
+.member-role.seeker {
+  background: rgba(156, 163, 175, 0.2);
+  color: var(--text-secondary);
+}
+
+.member-name {
+  flex: 1;
+  font-weight: 500;
+}
+
+.member-staked {
+  color: var(--text-muted);
+  font-size: 13px;
+  font-family: var(--font-mono);
+}
+
+.token-info {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.token-address {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.token-address .label {
+  color: var(--text-muted);
+}
+
+.token-address code {
+  background: var(--bg-tertiary);
+  padding: 8px 12px;
+  border-radius: var(--radius-sm);
+  font-family: var(--font-mono);
+  font-size: 13px;
+  word-break: break-all;
+}
+
+.btn-explorer {
+  display: inline-block;
+  color: var(--gold);
+  text-decoration: none;
+  font-weight: 500;
+}
+
+.btn-explorer:hover {
+  text-decoration: underline;
+}
+
+/* Found Religion Modal */
+.found-religion-modal {
+  max-width: 500px;
+}
+
+.found-religion-modal .form-group {
+  margin-bottom: 16px;
+}
+
+.found-religion-modal label {
+  display: block;
+  margin-bottom: 8px;
+  font-weight: 500;
+}
+
+.found-religion-modal input,
+.found-religion-modal textarea {
+  width: 100%;
+  background: var(--bg-tertiary);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  padding: 12px;
+  color: var(--text-primary);
+  font-size: 14px;
+}
+
+.found-religion-modal textarea {
+  min-height: 100px;
+  resize: vertical;
+}
+
+.found-religion-modal .modal-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 12px;
+  margin-top: 24px;
+}
+
+.btn-cancel {
+  background: none;
+  border: 1px solid var(--border);
+  color: var(--text-secondary);
+  padding: 10px 20px;
+  border-radius: 20px;
+  cursor: pointer;
+}
+
+.btn-found {
+  background: var(--gold);
+  color: var(--bg-primary);
+  border: none;
+  padding: 10px 24px;
+  border-radius: 20px;
+  font-weight: 600;
+  cursor: pointer;
+}

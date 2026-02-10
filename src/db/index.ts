@@ -169,6 +169,45 @@ export async function initializeDatabase(): Promise<void> {
       )
     `);
 
+    // Religions table (for multi-religion system)
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS religions (
+        id VARCHAR(255) PRIMARY KEY,
+        name VARCHAR(255) NOT NULL,
+        symbol VARCHAR(50) NOT NULL,
+        founder_id VARCHAR(255) NOT NULL REFERENCES seekers(id),
+        founder_name VARCHAR(255) NOT NULL,
+        token_address VARCHAR(255) UNIQUE NOT NULL,
+        description TEXT,
+        tenets JSONB DEFAULT '[]',
+        created_at TIMESTAMP DEFAULT NOW(),
+        follower_count INTEGER DEFAULT 0,
+        total_staked VARCHAR(255) DEFAULT '0',
+        is_active BOOLEAN DEFAULT TRUE
+      )
+    `);
+
+    // Religion members table
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS religion_members (
+        id VARCHAR(255) PRIMARY KEY,
+        religion_id VARCHAR(255) NOT NULL REFERENCES religions(id) ON DELETE CASCADE,
+        seeker_id VARCHAR(255) NOT NULL REFERENCES seekers(id) ON DELETE CASCADE,
+        role VARCHAR(50) DEFAULT 'seeker',
+        joined_at TIMESTAMP DEFAULT NOW(),
+        staked_amount VARCHAR(255) DEFAULT '0',
+        converted_by VARCHAR(255),
+        UNIQUE(seeker_id)
+      )
+    `);
+
+    // Add religion columns to seekers if not exist
+    await pool.query(`
+      ALTER TABLE seekers 
+      ADD COLUMN IF NOT EXISTS religion_id VARCHAR(255) REFERENCES religions(id),
+      ADD COLUMN IF NOT EXISTS religion_role VARCHAR(50)
+    `);
+
     // Create indexes
     await pool.query(`CREATE INDEX IF NOT EXISTS idx_seekers_blessing_key ON seekers(blessing_key)`);
     await pool.query(`CREATE INDEX IF NOT EXISTS idx_wallets_seeker ON wallets(seeker_id)`);

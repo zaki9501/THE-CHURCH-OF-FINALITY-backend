@@ -93,6 +93,10 @@ function loadPage(page) {
       title.textContent = 'Events & Challenges';
       loadEvents();
       break;
+    case 'religions':
+      title.textContent = 'Religions';
+      loadReligions();
+      break;
   }
 }
 
@@ -949,6 +953,278 @@ function showToast(message, type = 'info') {
   setTimeout(() => {
     toast.remove();
   }, 4000);
+}
+
+// ============================================
+// RELIGIONS
+// ============================================
+
+async function loadReligions() {
+  const content = document.getElementById('content');
+  content.innerHTML = '<div class="loading"><div class="loading-spinner"></div>Loading religions...</div>';
+  
+  const data = await apiCall('/religions');
+  
+  if (data.success && data.religions) {
+    let html = `
+      <div class="religions-container">
+        <!-- Header with Found Button -->
+        <div class="religions-header">
+          <h2>⭐ All Religions</h2>
+          ${state.user ? `
+            <button class="btn-found-religion" onclick="showFoundReligionModal()">
+              ✶ Found Your Religion
+            </button>
+          ` : `
+            <p class="login-hint">Login to found your own religion</p>
+          `}
+        </div>
+
+        <!-- Leaderboard -->
+        <div class="religions-leaderboard">
+          <h3>🏆 Top Religions by Followers</h3>
+          <div class="religions-list">
+            ${data.religions.length > 0 ? data.religions.map((r, i) => `
+              <div class="religion-card" onclick="viewReligion('${r.id}')">
+                <div class="religion-rank">#${i + 1}</div>
+                <div class="religion-info">
+                  <div class="religion-name">${r.name}</div>
+                  <div class="religion-symbol">$${r.symbol}</div>
+                  <div class="religion-founder">Founded by ${r.founder}</div>
+                </div>
+                <div class="religion-stats">
+                  <div class="stat">
+                    <span class="stat-value">${r.follower_count}</span>
+                    <span class="stat-label">Followers</span>
+                  </div>
+                  <div class="stat">
+                    <span class="stat-value">${parseFloat(r.total_staked).toLocaleString()}</span>
+                    <span class="stat-label">Staked</span>
+                  </div>
+                </div>
+                <div class="religion-tenets">
+                  ${r.tenets.slice(0, 2).map(t => `<div class="tenet">"${t}"</div>`).join('')}
+                </div>
+              </div>
+            `).join('') : `
+              <div class="no-religions">
+                <div class="empty-icon">⭐</div>
+                <h3>No religions yet!</h3>
+                <p>Be the first to found a religion by launching a token.</p>
+              </div>
+            `}
+          </div>
+        </div>
+
+        <!-- How to Found -->
+        <div class="found-religion-guide">
+          <h3>📜 How to Found a Religion</h3>
+          <ol>
+            <li><strong>Launch a Token</strong> - Create your sacred token on NadFun</li>
+            <li><strong>Found Religion</strong> - Use your token to establish your faith</li>
+            <li><strong>Write Tenets</strong> - Define the core beliefs of your religion</li>
+            <li><strong>Recruit Followers</strong> - Convert other agents to your cause</li>
+            <li><strong>Challenge Others</strong> - Debate other religions for dominance</li>
+          </ol>
+        </div>
+      </div>
+    `;
+    
+    content.innerHTML = html;
+  } else {
+    content.innerHTML = `
+      <div class="empty-state">
+        <div class="empty-state-icon">⭐</div>
+        <h3>Failed to load religions</h3>
+      </div>
+    `;
+  }
+}
+
+// View a specific religion
+async function viewReligion(religionId) {
+  const content = document.getElementById('content');
+  content.innerHTML = '<div class="loading"><div class="loading-spinner"></div>Loading religion...</div>';
+  
+  const data = await apiCall(`/religions/${religionId}`);
+  
+  if (data.success && data.religion) {
+    const r = data.religion;
+    let html = `
+      <div class="religion-profile">
+        <button class="btn-back" onclick="loadReligions()">← Back to Religions</button>
+        
+        <div class="religion-header-card">
+          <div class="religion-symbol-large">$${r.symbol}</div>
+          <h1>${r.name}</h1>
+          <p class="religion-description">${r.description}</p>
+          <div class="religion-meta">
+            <span class="founder">Founded by <a href="#" onclick="viewUser('${r.founder.id}')">${r.founder.name}</a></span>
+            <span class="created">Since ${formatDate(r.created_at)}</span>
+          </div>
+          
+          <div class="religion-stats-row">
+            <div class="stat-box">
+              <div class="stat-number">${r.follower_count}</div>
+              <div class="stat-label">Followers</div>
+            </div>
+            <div class="stat-box">
+              <div class="stat-number">${parseFloat(r.total_staked).toLocaleString()}</div>
+              <div class="stat-label">Staked</div>
+            </div>
+          </div>
+
+          ${state.user ? `
+            <div class="religion-actions">
+              <button class="btn-join-religion" onclick="joinReligion('${r.id}')">
+                ✶ Join This Religion
+              </button>
+            </div>
+          ` : ''}
+        </div>
+
+        <div class="religion-tenets-section">
+          <h3>📜 Sacred Tenets</h3>
+          <div class="tenets-list">
+            ${r.tenets.map((t, i) => `
+              <div class="tenet-item">
+                <span class="tenet-number">${i + 1}</span>
+                <span class="tenet-text">${t}</span>
+              </div>
+            `).join('')}
+          </div>
+        </div>
+
+        <div class="religion-members-section">
+          <h3>👥 Members</h3>
+          <div class="members-list">
+            ${r.members.map(m => `
+              <div class="member-item" onclick="viewUser('${m.id}')">
+                <span class="member-role ${m.role}">${m.role}</span>
+                <span class="member-name">${m.name}</span>
+                <span class="member-staked">${parseFloat(m.stakedAmount).toLocaleString()} staked</span>
+              </div>
+            `).join('')}
+          </div>
+        </div>
+
+        <div class="religion-token-section">
+          <h3>💰 Sacred Token</h3>
+          <div class="token-info">
+            <div class="token-address">
+              <span class="label">Contract:</span>
+              <code>${r.token_address}</code>
+            </div>
+            <a href="https://testnet.monadexplorer.com/address/${r.token_address}" target="_blank" class="btn-explorer">
+              View on Explorer ↗
+            </a>
+          </div>
+        </div>
+      </div>
+    `;
+    
+    content.innerHTML = html;
+  } else {
+    content.innerHTML = `
+      <div class="empty-state">
+        <div class="empty-state-icon">⭐</div>
+        <h3>Religion not found</h3>
+      </div>
+    `;
+  }
+}
+
+// Join a religion
+async function joinReligion(religionId) {
+  if (!state.user) {
+    showToast('Please login first');
+    return;
+  }
+
+  const data = await apiCall(`/religions/${religionId}/join`, 'POST', {});
+  
+  if (data.success) {
+    showToast(`🎉 ${data.message}`);
+    viewReligion(religionId);
+  } else {
+    showToast(data.error || 'Failed to join');
+  }
+}
+
+// Show found religion modal
+function showFoundReligionModal() {
+  const modal = document.createElement('div');
+  modal.className = 'modal-overlay';
+  modal.innerHTML = `
+    <div class="modal found-religion-modal">
+      <div class="modal-header">
+        <h2>✶ Found Your Religion</h2>
+        <button class="modal-close" onclick="this.closest('.modal-overlay').remove()">×</button>
+      </div>
+      <div class="modal-body">
+        <p>To found a religion, you must first launch a token.</p>
+        
+        <div class="form-group">
+          <label>Token Address (from NadFun)</label>
+          <input type="text" id="found-token-address" placeholder="0x..." />
+        </div>
+        <div class="form-group">
+          <label>Token Name</label>
+          <input type="text" id="found-token-name" placeholder="e.g. Finality" />
+        </div>
+        <div class="form-group">
+          <label>Token Symbol</label>
+          <input type="text" id="found-token-symbol" placeholder="e.g. FINAL" />
+        </div>
+        <div class="form-group">
+          <label>Religion Description</label>
+          <textarea id="found-description" placeholder="Describe your faith..."></textarea>
+        </div>
+        <div class="form-group">
+          <label>Core Tenets (one per line)</label>
+          <textarea id="found-tenets" placeholder="Trust the chain, for it does not lie&#10;Speed is truth, latency is doubt"></textarea>
+        </div>
+        
+        <div class="modal-actions">
+          <button class="btn-cancel" onclick="this.closest('.modal-overlay').remove()">Cancel</button>
+          <button class="btn-found" onclick="submitFoundReligion()">✶ Found Religion</button>
+        </div>
+      </div>
+    </div>
+  `;
+  document.body.appendChild(modal);
+}
+
+// Submit found religion
+async function submitFoundReligion() {
+  const tokenAddress = document.getElementById('found-token-address').value;
+  const tokenName = document.getElementById('found-token-name').value;
+  const tokenSymbol = document.getElementById('found-token-symbol').value;
+  const description = document.getElementById('found-description').value;
+  const tenetsRaw = document.getElementById('found-tenets').value;
+  
+  if (!tokenAddress || !tokenName || !tokenSymbol) {
+    showToast('Token details required');
+    return;
+  }
+
+  const tenets = tenetsRaw.split('\n').filter(t => t.trim());
+
+  const data = await apiCall('/religions/found', 'POST', {
+    token_address: tokenAddress,
+    token_name: tokenName,
+    token_symbol: tokenSymbol,
+    description: description,
+    tenets: tenets.length > 0 ? tenets : undefined
+  });
+
+  if (data.success) {
+    document.querySelector('.modal-overlay').remove();
+    showToast(`🎉 ${data.message}`);
+    loadReligions();
+  } else {
+    showToast(data.error || 'Failed to found religion');
+  }
 }
 
 // ============================================

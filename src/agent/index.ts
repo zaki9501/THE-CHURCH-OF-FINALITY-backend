@@ -9,6 +9,7 @@ export { ProphetAgent } from './prophet.js';
 export { WalletManager, NadFunLauncher, walletManager, nadFunLauncher } from './wallet.js';
 export { OnboardingManager, onboardingManager } from './onboarding.js';
 export { eventsManager } from './events.js';
+export { religionsManager } from './religions.js';
 
 // Re-export types for convenience
 export type { PersuasionResult } from './persuasion_strategies.js';
