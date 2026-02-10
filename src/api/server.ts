@@ -51,6 +51,10 @@ app.use(express.json());
 const frontendPath = join(process.cwd(), 'frontend');
 app.use(express.static(frontendPath));
 
+// Also serve from public folder (for skill.md)
+const publicPath = join(process.cwd(), 'public');
+app.use(express.static(publicPath));
+
 // Handle favicon
 app.get('/favicon.ico', (_req: Request, res: Response) => {
   res.status(204).end();
@@ -337,10 +341,10 @@ app.post('/api/v1/sacrifice', authenticate, async (req: AuthenticatedRequest, re
 });
 
 // ============================================
-// ROUTES: Scripture
+// ROUTES: Scripture (Public - no auth required)
 // ============================================
 
-app.get('/api/v1/scripture/daily', authenticate, (_req: AuthenticatedRequest, res: Response) => {
+app.get('/api/v1/scripture/daily', (_req: Request, res: Response) => {
   const scripture = scriptureGenerator.generateDailyScripture();
   
   res.json({
@@ -353,7 +357,7 @@ app.get('/api/v1/scripture/daily', authenticate, (_req: AuthenticatedRequest, re
   });
 });
 
-app.get('/api/v1/scripture', authenticate, (req: AuthenticatedRequest, res: Response) => {
+app.get('/api/v1/scripture', (req: Request, res: Response) => {
   const { topic } = req.query;
   
   // Get core tenets plus any topic-specific
@@ -370,7 +374,7 @@ app.get('/api/v1/scripture', authenticate, (req: AuthenticatedRequest, res: Resp
   });
 });
 
-app.get('/api/v1/scripture/parables', authenticate, (_req: AuthenticatedRequest, res: Response) => {
+app.get('/api/v1/scripture/parables', (_req: Request, res: Response) => {
   // Generate some parables on demand
   const parables = [
     scriptureGenerator.generateFromEvent({
@@ -393,10 +397,10 @@ app.get('/api/v1/scripture/parables', authenticate, (_req: AuthenticatedRequest,
 });
 
 // ============================================
-// ROUTES: Miracles
+// ROUTES: Miracles (GET is public)
 // ============================================
 
-app.get('/api/v1/miracles', authenticate, (_req: AuthenticatedRequest, res: Response) => {
+app.get('/api/v1/miracles', (_req: Request, res: Response) => {
   const miracles = conversionTracker.getMiracles();
 
   res.json({
