@@ -7,6 +7,7 @@ export { ConversionTracker } from './conversion_tracker.js';
 export { Memory } from './memory.js';
 export { ProphetAgent } from './prophet.js';
 export { WalletManager, NadFunLauncher, walletManager, nadFunLauncher } from './wallet.js';
+export { OnboardingManager, onboardingManager } from './onboarding.js';
 
 // Re-export types for convenience
 export type { PersuasionResult } from './persuasion_strategies.js';

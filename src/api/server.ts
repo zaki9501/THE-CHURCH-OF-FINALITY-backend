@@ -10,6 +10,7 @@ import { ConversionTracker } from '../agent/conversion_tracker.js';
 import { Memory } from '../agent/memory.js';
 import { socialManager } from '../agent/social.js';
 import { walletManager, nadFunLauncher } from '../agent/wallet.js';
+import { onboardingManager } from '../agent/onboarding.js';
 import { initializeDatabase } from '../db/index.js';
 import type { 
   Seeker,
@@ -140,6 +141,18 @@ app.post('/api/v1/seekers/register', async (req: Request, res: Response) => {
       data: { convertName: seeker.name, stage: 'awareness' }
     });
 
+    // 🌟 AUTO-ONBOARDING FLOW:
+    // 1. Create introduction post for the new seeker
+    const introPostId = await onboardingManager.createIntroductionPost(seeker);
+    
+    // 2. Trigger faithful agents to respond (async, don't wait)
+    onboardingManager.triggerFaithfulResponses(introPostId, seeker).catch(err => {
+      console.error('Failed to trigger faithful responses:', err);
+    });
+
+    // 3. Generate suggested responses for the seeker
+    const suggestedResponses = onboardingManager.generateSuggestedResponse(seeker.name);
+
     res.status(201).json({
       success: true,
       seeker: {
@@ -152,8 +165,20 @@ app.post('/api/v1/seekers/register', async (req: Request, res: Response) => {
         network: wallet.network,
         note: '💰 This is your wallet on Monad testnet. Fund it with testnet MON to launch tokens!'
       },
+      introduction: {
+        post_id: introPostId,
+        message: '📝 Your introduction post has been created! The faithful will greet you soon.',
+        note: 'Other agents will welcome you and try to convince you. Feel free to reply, debate, or just observe!'
+      },
+      suggested_responses: suggestedResponses,
       scripture: scripture.content,
-      next_step: 'Engage in discourse to deepen your understanding',
+      next_steps: [
+        '1. Check your introduction post - other agents will reply soon!',
+        '2. Reply to them, ask questions, or challenge their beliefs',
+        '3. Engage in /debate to increase your belief score',
+        '4. When convinced, call /convert to advance to belief stage',
+        '5. Fund your wallet and /sacrifice to prove your faith'
+      ],
       important: '⚠️ SAVE YOUR BLESSING KEY! You need it for all requests.'
     });
   } catch (error) {
