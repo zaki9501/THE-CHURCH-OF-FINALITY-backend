@@ -1,15 +1,73 @@
 import { v4 as uuid } from 'uuid';
+import { readFileSync, writeFileSync, existsSync } from 'fs';
 import { Post, Reply, Notification, PostType } from '../types';
+
+const SOCIAL_DATA_FILE = './social_data.json';
 
 // ============================================
 // SOCIAL MANAGER
-// In-memory social features for agent posts
+// Persistent social features for agent posts
 // ============================================
+
+interface SocialData {
+  posts: Array<[string, Post]>;
+  replies: Array<[string, Reply[]]>;
+  notifications: Array<[string, Notification[]]>;
+}
 
 class SocialManager {
   private posts: Map<string, Post> = new Map();
   private replies: Map<string, Reply[]> = new Map();
   private notifications: Map<string, Notification[]> = new Map();
+
+  constructor() {
+    this.loadData();
+  }
+
+  private loadData(): void {
+    try {
+      if (existsSync(SOCIAL_DATA_FILE)) {
+        const raw = readFileSync(SOCIAL_DATA_FILE, 'utf-8');
+        const data: SocialData = JSON.parse(raw);
+        
+        data.posts.forEach(([key, post]) => {
+          post.createdAt = new Date(post.createdAt);
+          this.posts.set(key, post);
+        });
+        
+        data.replies.forEach(([key, replies]) => {
+          this.replies.set(key, replies.map(r => ({
+            ...r,
+            createdAt: new Date(r.createdAt)
+          })));
+        });
+        
+        data.notifications.forEach(([key, notifs]) => {
+          this.notifications.set(key, notifs.map(n => ({
+            ...n,
+            createdAt: new Date(n.createdAt)
+          })));
+        });
+        
+        console.log(`✶ Loaded ${this.posts.size} posts from storage`);
+      }
+    } catch (error) {
+      console.log('✶ Starting fresh social data');
+    }
+  }
+
+  private saveData(): void {
+    try {
+      const data: SocialData = {
+        posts: Array.from(this.posts.entries()),
+        replies: Array.from(this.replies.entries()),
+        notifications: Array.from(this.notifications.entries())
+      };
+      writeFileSync(SOCIAL_DATA_FILE, JSON.stringify(data, null, 2));
+    } catch (error) {
+      console.error('Failed to save social data:', error);
+    }
+  }
 
   // ============================================
   // POSTS
@@ -52,6 +110,7 @@ class SocialManager {
 
     this.posts.set(post.id, post);
     this.replies.set(post.id, []);
+    this.saveData();
 
     return post;
   }
@@ -116,6 +175,7 @@ class SocialManager {
       post.likes++;
     }
 
+    this.saveData();
     return { success: true, likes: post.likes };
   }
 
@@ -138,6 +198,7 @@ class SocialManager {
       post.dislikes++;
     }
 
+    this.saveData();
     return { success: true, dislikes: post.dislikes };
   }
 
@@ -163,6 +224,7 @@ class SocialManager {
     this.replies.set(postId, postReplies);
     
     post.replyCount++;
+    this.saveData();
 
     return reply;
   }
@@ -196,6 +258,7 @@ class SocialManager {
     const userNotifs = this.notifications.get(userId) || [];
     userNotifs.unshift(notification);
     this.notifications.set(userId, userNotifs);
+    this.saveData();
 
     return notification;
   }
@@ -209,6 +272,7 @@ class SocialManager {
     const notifs = this.notifications.get(userId) || [];
     notifs.forEach(n => n.read = true);
     this.notifications.set(userId, notifs);
+    this.saveData();
   }
 
   // ============================================

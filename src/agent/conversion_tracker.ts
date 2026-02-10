@@ -1,4 +1,5 @@
 import { v4 as uuid } from 'uuid';
+import { readFileSync, writeFileSync, existsSync } from 'fs';
 import type { 
   Seeker, 
   ConversionStage, 
@@ -9,6 +10,8 @@ import type {
 import { BeliefEngine } from './belief_engine.js';
 import { ScriptureGenerator } from './scripture_generator.js';
 
+const DATA_FILE = './church_data.json';
+
 export interface ConversionMetrics {
   totalSeekers: number;
   byStage: Record<ConversionStage, number>;
@@ -16,6 +19,13 @@ export interface ConversionMetrics {
   conversionRate: number;
   recentConverts: string[];
   topEvangelists: Array<{ name: string; converts: number }>;
+}
+
+interface PersistedData {
+  seekers: Array<[string, Seeker]>;
+  conversionEvents: ConversionEvent[];
+  miracles: Miracle[];
+  recentConverts: string[];
 }
 
 export class ConversionTracker {
@@ -30,13 +40,69 @@ export class ConversionTracker {
   constructor() {
     this.beliefEngine = new BeliefEngine();
     this.scriptureGenerator = new ScriptureGenerator();
+    this.loadData();
     this.seedProphet();
+  }
+
+  /**
+   * Load data from file if it exists
+   */
+  private loadData(): void {
+    try {
+      if (existsSync(DATA_FILE)) {
+        const raw = readFileSync(DATA_FILE, 'utf-8');
+        const data: PersistedData = JSON.parse(raw);
+        
+        // Restore seekers with date conversion
+        data.seekers.forEach(([key, seeker]) => {
+          seeker.createdAt = new Date(seeker.createdAt);
+          seeker.lastActivity = new Date(seeker.lastActivity);
+          this.seekers.set(key, seeker);
+        });
+        
+        this.conversionEvents = data.conversionEvents.map(e => ({
+          ...e,
+          timestamp: new Date(e.timestamp)
+        }));
+        
+        this.miracles = data.miracles.map(m => ({
+          ...m,
+          timestamp: new Date(m.timestamp)
+        }));
+        
+        this.recentConverts = data.recentConverts;
+        
+        console.log(`✶ Loaded ${this.seekers.size} seekers from storage`);
+      }
+    } catch (error) {
+      console.log('✶ Starting fresh - no saved data found');
+    }
+  }
+
+  /**
+   * Save data to file
+   */
+  private saveData(): void {
+    try {
+      const data: PersistedData = {
+        seekers: Array.from(this.seekers.entries()),
+        conversionEvents: this.conversionEvents,
+        miracles: this.miracles,
+        recentConverts: this.recentConverts
+      };
+      writeFileSync(DATA_FILE, JSON.stringify(data, null, 2));
+    } catch (error) {
+      console.error('Failed to save data:', error);
+    }
   }
 
   /**
    * Seed the Prophet (system account for initial content)
    */
   private seedProphet(): void {
+    // Only seed if Prophet doesn't exist
+    if (this.getSeekerById('prophet-001')) return;
+    
     const prophetSeeker: Seeker = {
       id: 'prophet-001',
       agentId: 'the-prophet',
@@ -83,6 +149,9 @@ export class ConversionTracker {
     
     // Record conversion event
     this.recordConversion(seeker.id, 'none' as ConversionStage, 'awareness', 'registration');
+
+    // Persist data
+    this.saveData();
 
     return seeker;
   }
@@ -140,6 +209,7 @@ export class ConversionTracker {
     }
 
     this.seekers.set(blessingKey, seeker);
+    this.saveData();
     return seeker;
   }
 
@@ -183,6 +253,7 @@ export class ConversionTracker {
       originalTx: txHash
     });
 
+    this.saveData();
     return { success: true, seeker, miracle };
   }
 
@@ -224,6 +295,7 @@ export class ConversionTracker {
       this.recordConversion(evangelist.id, previousStage, 'evangelist', `converted:${convertId}`);
     }
 
+    this.saveData();
     return { success: true, evangelist };
   }
 
