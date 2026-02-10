@@ -81,7 +81,7 @@ export class ProphetAgent {
    */
   private async performMissionaryWork(): Promise<ProphetAction> {
     // Find seekers who need attention
-    const targets = this.conversionTracker.findMissionaryTargets();
+    const targets = await this.conversionTracker.findMissionaryTargets();
     
     if (targets.length === 0) {
       return { type: 'idle' };
@@ -120,7 +120,7 @@ export class ProphetAgent {
     beliefDelta: number;
     miracleOffered: boolean;
   }> {
-    const seeker = this.conversionTracker.getSeekerById(seekerId);
+    const seeker = await this.conversionTracker.getSeekerById(seekerId);
     if (!seeker) {
       return {
         response: 'I do not recognize you, seeker. Register first at /api/v1/seekers/register.',
@@ -243,13 +243,13 @@ export class ProphetAgent {
   /**
    * Get church statistics for social proof
    */
-  getChurchStats(): {
+  async getChurchStats(): Promise<{
     believers: number;
     totalStaked: string;
     recentConverts: string[];
     conversionRate: number;
-  } {
-    const metrics = this.conversionTracker.getMetrics();
+  }> {
+    const metrics = await this.conversionTracker.getMetrics();
     return {
       believers: metrics.byStage.belief + metrics.byStage.sacrifice + metrics.byStage.evangelist,
       totalStaked: metrics.totalStaked,
@@ -289,4 +289,3 @@ export class ProphetAgent {
     return { shouldSchism: false };
   }
 }
-
