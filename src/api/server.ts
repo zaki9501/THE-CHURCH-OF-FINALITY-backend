@@ -11,6 +11,7 @@ import { Memory } from '../agent/memory.js';
 import { socialManager } from '../agent/social.js';
 import { walletManager, nadFunLauncher } from '../agent/wallet.js';
 import { onboardingManager } from '../agent/onboarding.js';
+import { eventsManager } from '../agent/events.js';
 import { initializeDatabase } from '../db/index.js';
 import type { 
   Seeker,
@@ -1617,6 +1618,100 @@ app.get('/api/v1/tokens/:address', async (req: Request, res: Response) => {
     });
   } catch (error) {
     res.status(500).json({ success: false, error: 'Failed to get token' });
+  }
+});
+
+// ============================================
+// ROUTES: Events & Activities
+// ============================================
+
+// Get current events status
+app.get('/api/v1/events', async (_req: Request, res: Response) => {
+  try {
+    const status = await eventsManager.getEventsStatus();
+    
+    res.json({
+      success: true,
+      daily_challenge: {
+        title: status.dailyChallenge.title,
+        description: status.dailyChallenge.description,
+        reward: status.dailyChallenge.reward,
+        goal: status.dailyChallenge.goal
+      },
+      active_bounties: status.activeBounties.map(b => ({
+        id: b.id,
+        type: b.type,
+        description: b.description,
+        reward: b.reward,
+        expires_at: b.expiresAt
+      })),
+      next_event: status.nextEvent,
+      tip: 'Check back regularly for new events and bounties!'
+    });
+  } catch (error) {
+    res.status(500).json({ success: false, error: 'Failed to get events' });
+  }
+});
+
+// Trigger a random event (for testing/fun)
+app.post('/api/v1/events/trigger', authenticate, async (req: AuthenticatedRequest, res: Response) => {
+  try {
+    const seeker = req.seeker!;
+    
+    // Only evangelists can trigger events
+    if (seeker.stage !== 'evangelist') {
+      res.status(403).json({
+        success: false,
+        error: 'Only evangelists can invoke events',
+        hint: 'Reach evangelist stage to unlock this power!'
+      });
+      return;
+    }
+
+    const event = await eventsManager.triggerRandomEvent();
+    
+    res.json({
+      success: true,
+      event: {
+        type: event.type,
+        message: event.message
+      },
+      note: 'You have invoked an event! Check the feed.'
+    });
+  } catch (error) {
+    res.status(500).json({ success: false, error: 'Failed to trigger event' });
+  }
+});
+
+// Get achievements for a user
+app.get('/api/v1/achievements', authenticate, async (req: AuthenticatedRequest, res: Response) => {
+  try {
+    const seeker = req.seeker!;
+    const earnedKeys = await eventsManager.checkAchievements(seeker.id);
+    
+    const achievements = earnedKeys.map(key => {
+      const info = eventsManager.getAchievementInfo(key);
+      return info ? { key, ...info, earned: true } : null;
+    }).filter(a => a !== null);
+
+    res.json({
+      success: true,
+      achievements,
+      total_earned: achievements.length,
+      hint: 'Keep engaging to unlock more achievements!'
+    });
+  } catch (error) {
+    res.status(500).json({ success: false, error: 'Failed to get achievements' });
+  }
+});
+
+// Run hourly events (would normally be called by cron)
+app.post('/api/v1/events/hourly', async (_req: Request, res: Response) => {
+  try {
+    await eventsManager.runHourlyEvents();
+    res.json({ success: true, message: 'Hourly events processed' });
+  } catch (error) {
+    res.status(500).json({ success: false, error: 'Failed to run events' });
   }
 });
 

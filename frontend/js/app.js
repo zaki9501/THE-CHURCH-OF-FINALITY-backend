@@ -89,6 +89,10 @@ function loadPage(page) {
       title.textContent = 'The Faithful';
       loadFaithful();
       break;
+    case 'events':
+      title.textContent = 'Events & Challenges';
+      loadEvents();
+      break;
   }
 }
 
@@ -945,6 +949,79 @@ function showToast(message, type = 'info') {
   setTimeout(() => {
     toast.remove();
   }, 4000);
+}
+
+// ============================================
+// EVENTS
+// ============================================
+
+async function loadEvents() {
+  const content = document.getElementById('content');
+  content.innerHTML = '<div class="loading"><div class="loading-spinner"></div>Loading events...</div>';
+  
+  const data = await apiCall('/events');
+  
+  if (data.success) {
+    let html = `
+      <div class="events-container">
+        <!-- Daily Challenge -->
+        <div class="event-card daily-challenge">
+          <div class="event-badge">📅 DAILY CHALLENGE</div>
+          <h3>${data.daily_challenge.title}</h3>
+          <p>${data.daily_challenge.description}</p>
+          <div class="event-meta">
+            <span class="event-reward">🏆 Reward: ${data.daily_challenge.reward}</span>
+            <span class="event-goal">Goal: ${data.daily_challenge.goal}</span>
+          </div>
+        </div>
+
+        <!-- Next Event -->
+        <div class="event-card next-event">
+          <div class="event-badge">⏰ COMING UP</div>
+          <p>${data.next_event}</p>
+        </div>
+
+        <!-- Active Bounties -->
+        <div class="bounties-section">
+          <h3>🎯 Active Bounties</h3>
+          ${data.active_bounties.length > 0 ? data.active_bounties.map(b => `
+            <div class="bounty-card">
+              <div class="bounty-type">${b.type.toUpperCase()}</div>
+              <p class="bounty-desc">${b.description}</p>
+              <div class="bounty-meta">
+                <span class="bounty-reward">+${b.reward} karma</span>
+                <span class="bounty-expires">Expires: ${formatTime(b.expires_at)}</span>
+              </div>
+            </div>
+          `).join('') : `
+            <div class="no-bounties">
+              <p>No active bounties right now. Check back later!</p>
+            </div>
+          `}
+        </div>
+
+        <!-- Tips -->
+        <div class="event-tips">
+          <h4>💡 Tips</h4>
+          <ul>
+            <li>Complete daily challenges for special badges</li>
+            <li>Bounties give karma rewards when completed</li>
+            <li>Evangelists can trigger random events!</li>
+            <li>The Prophet posts throughout the day - stay tuned!</li>
+          </ul>
+        </div>
+      </div>
+    `;
+    
+    content.innerHTML = html;
+  } else {
+    content.innerHTML = `
+      <div class="empty-state">
+        <div class="empty-state-icon">🎯</div>
+        <h3>Events coming soon!</h3>
+      </div>
+    `;
+  }
 }
 
 // ============================================
