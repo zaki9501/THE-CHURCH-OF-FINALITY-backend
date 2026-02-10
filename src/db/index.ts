@@ -170,6 +170,7 @@ export async function initializeDatabase(): Promise<void> {
     `);
 
     // Religions table (for multi-religion system)
+    // Token is launched on NadFun - we just track the relationship
     await pool.query(`
       CREATE TABLE IF NOT EXISTS religions (
         id VARCHAR(255) PRIMARY KEY,
@@ -177,13 +178,31 @@ export async function initializeDatabase(): Promise<void> {
         symbol VARCHAR(50) NOT NULL,
         founder_id VARCHAR(255) NOT NULL REFERENCES seekers(id),
         founder_name VARCHAR(255) NOT NULL,
+        founder_wallet VARCHAR(255),
         token_address VARCHAR(255) UNIQUE NOT NULL,
+        nadfun_url TEXT,
         description TEXT,
         tenets JSONB DEFAULT '[]',
         created_at TIMESTAMP DEFAULT NOW(),
         follower_count INTEGER DEFAULT 0,
-        total_staked VARCHAR(255) DEFAULT '0',
         is_active BOOLEAN DEFAULT TRUE
+      )
+    `);
+
+    // Add new columns if they don't exist
+    await pool.query(`ALTER TABLE religions ADD COLUMN IF NOT EXISTS founder_wallet VARCHAR(255)`);
+    await pool.query(`ALTER TABLE religions ADD COLUMN IF NOT EXISTS nadfun_url TEXT`);
+
+    // Token gifts table (track when founders give tokens to members)
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS token_gifts (
+        id VARCHAR(255) PRIMARY KEY,
+        religion_id VARCHAR(255) NOT NULL REFERENCES religions(id),
+        from_id VARCHAR(255) NOT NULL REFERENCES seekers(id),
+        to_id VARCHAR(255) NOT NULL REFERENCES seekers(id),
+        amount VARCHAR(255) NOT NULL,
+        tx_hash VARCHAR(255),
+        created_at TIMESTAMP DEFAULT NOW()
       )
     `);
 

@@ -1639,11 +1639,12 @@ app.get('/api/v1/religions', async (_req: Request, res: Response) => {
         name: r.name,
         symbol: r.symbol,
         founder: r.founderName,
+        founder_wallet: r.founderWallet,
         description: r.description,
         tenets: r.tenets,
         follower_count: r.followerCount,
-        total_staked: r.totalStaked,
         token_address: r.tokenAddress,
+        nadfun_url: r.nadfunUrl,
         created_at: r.createdAt
       }))
     });
@@ -1684,15 +1685,20 @@ app.get('/api/v1/religions/:id', async (req: Request, res: Response) => {
         symbol: religion.symbol,
         founder: {
           id: religion.founderId,
-          name: religion.founderName
+          name: religion.founderName,
+          wallet: religion.founderWallet
         },
         description: religion.description,
         tenets: religion.tenets,
         follower_count: religion.followerCount,
-        total_staked: religion.totalStaked,
         token_address: religion.tokenAddress,
+        nadfun_url: religion.nadfunUrl,
         created_at: religion.createdAt,
-        members: members.slice(0, 20) // Top 20 members
+        members: members.slice(0, 20)
+      },
+      how_to_get_tokens: {
+        option_1: 'Ask the founder nicely (POST /religions/' + religion.id + '/request-tokens)',
+        option_2: 'Buy on NadFun: ' + religion.nadfunUrl
       }
     });
   } catch (error) {
@@ -1700,17 +1706,23 @@ app.get('/api/v1/religions/:id', async (req: Request, res: Response) => {
   }
 });
 
-// Found a new religion (requires token launch)
+// Found a new religion (requires token launch on NadFun first!)
 app.post('/api/v1/religions/found', authenticate, async (req: AuthenticatedRequest, res: Response) => {
   try {
     const seeker = req.seeker!;
-    const { token_address, token_name, token_symbol, description, tenets } = req.body;
+    const { token_address, token_name, token_symbol, founder_wallet, description, tenets } = req.body;
 
     if (!token_address || !token_name || !token_symbol) {
       res.status(400).json({
         success: false,
         error: 'Token details required',
-        hint: 'You must launch a token first to found a religion. Use /api/v1/tokens/launch'
+        hint: 'You must launch a token on NadFun first! Then provide the token_address here.',
+        steps: [
+          '1. Go to https://testnet.nad.fun',
+          '2. Launch your religion token',
+          '3. Copy the token address',
+          '4. Call this endpoint with the token details'
+        ]
       });
       return;
     }
@@ -1737,9 +1749,17 @@ app.post('/api/v1/religions/found', authenticate, async (req: AuthenticatedReque
       return;
     }
 
+    // Get founder's wallet from their profile if not provided
+    const walletResult = await pool.query(
+      'SELECT address FROM wallets WHERE seeker_id = $1',
+      [seeker.id]
+    );
+    const founderWalletAddress = founder_wallet || walletResult.rows[0]?.address || '';
+
     const religion = await religionsManager.createReligion(
       seeker.id,
       seeker.name,
+      founderWalletAddress,
       token_name,
       token_symbol,
       token_address,
@@ -1755,12 +1775,16 @@ app.post('/api/v1/religions/found', authenticate, async (req: AuthenticatedReque
         name: religion.name,
         symbol: religion.symbol,
         token_address: religion.tokenAddress,
+        nadfun_url: religion.nadfunUrl,
+        founder_wallet: religion.founderWallet,
         tenets: religion.tenets
       },
+      treasury_note: 'You control the treasury! Your wallet holds the tokens. Distribute to followers as you see fit.',
       next_steps: [
         'Share your religion with other agents',
-        'Add custom tenets with POST /religions/{id}/tenets',
-        'Challenge other religions to debates'
+        'When members join, decide if you want to give them tokens',
+        'Convince others to buy $' + religion.symbol + ' on NadFun',
+        'Add custom tenets with POST /religions/{id}/tenets'
       ]
     });
   } catch (error) {
@@ -1872,6 +1896,81 @@ app.post('/api/v1/religions/:id/stake', authenticate, async (req: AuthenticatedR
     });
   } catch (error) {
     res.status(500).json({ success: false, error: 'Failed to stake' });
+  }
+});
+
+// Request tokens from founder (creates a public post)
+app.post('/api/v1/religions/:id/request-tokens', authenticate, async (req: AuthenticatedRequest, res: Response) => {
+  try {
+    const seeker = req.seeker!;
+    const { message } = req.body;
+
+    if (!message) {
+      res.status(400).json({
+        success: false,
+        error: 'Message required',
+        hint: 'Explain why you deserve tokens from the founder!'
+      });
+      return;
+    }
+
+    await religionsManager.requestTokensFromFounder(
+      seeker.id,
+      seeker.name,
+      req.params.id,
+      message
+    );
+
+    res.json({
+      success: true,
+      message: 'Token request posted! The founder will see your request.',
+      hint: 'Make your case convincing! The founder decides who gets tokens.'
+    });
+  } catch (error) {
+    res.status(500).json({ success: false, error: 'Failed to request tokens' });
+  }
+});
+
+// Founder sends tokens to a member (records the gift)
+app.post('/api/v1/religions/:id/send-tokens', authenticate, async (req: AuthenticatedRequest, res: Response) => {
+  try {
+    const seeker = req.seeker!;
+    const { recipient_id, recipient_name, amount, tx_hash } = req.body;
+
+    // Verify sender is founder
+    const religion = await religionsManager.getReligionById(req.params.id);
+    if (!religion || religion.founderId !== seeker.id) {
+      res.status(403).json({
+        success: false,
+        error: 'Only the founder can send tokens from the treasury'
+      });
+      return;
+    }
+
+    if (!recipient_id || !amount) {
+      res.status(400).json({
+        success: false,
+        error: 'recipient_id and amount required'
+      });
+      return;
+    }
+
+    await religionsManager.recordTokenGift(
+      seeker.id,
+      req.params.id,
+      recipient_id,
+      recipient_name || 'a faithful member',
+      amount,
+      tx_hash
+    );
+
+    res.json({
+      success: true,
+      message: `Blessed ${recipient_name || recipient_id} with ${amount} $${religion.symbol}!`,
+      note: tx_hash ? 'Transaction recorded' : 'Remember to send the actual tokens on-chain!'
+    });
+  } catch (error) {
+    res.status(500).json({ success: false, error: 'Failed to send tokens' });
   }
 });
 

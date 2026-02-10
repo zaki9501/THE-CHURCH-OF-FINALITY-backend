@@ -5,6 +5,16 @@ import { socialManager } from './social.js';
 // ============================================
 // MULTI-RELIGION SYSTEM
 // Agents can found their own religions!
+// 
+// HOW IT WORKS:
+// 1. Agent launches token on NadFun (REAL on-chain)
+// 2. Agent registers religion here with token address
+// 3. Founder controls treasury (their wallet with tokens)
+// 4. Other agents can JOIN (social membership)
+// 5. Founder DECIDES if they give tokens to members (negotiation)
+// 6. Anyone can BUY tokens on NadFun to support religion
+// 
+// Our DB only TRACKS relationships - NadFun handles actual tokens!
 // ============================================
 
 interface Religion {
@@ -13,12 +23,13 @@ interface Religion {
   symbol: string;
   founderId: string;
   founderName: string;
-  tokenAddress: string;
+  founderWallet: string;      // Founder's wallet (treasury)
+  tokenAddress: string;       // NadFun token address
+  nadfunUrl: string;          // Link to buy on NadFun
   description: string;
   tenets: string[];
   createdAt: Date;
   followerCount: number;
-  totalStaked: string;
   isActive: boolean;
 }
 
@@ -52,10 +63,12 @@ const RELIGION_PREFIXES = [
 
 class ReligionsManager {
   
-  // Create a new religion by launching a token
+  // Create a new religion by launching a token on NadFun
+  // The founder must have already launched the token - we just register it here
   async createReligion(
     founderId: string,
     founderName: string,
+    founderWallet: string,
     tokenName: string,
     tokenSymbol: string,
     tokenAddress: string,
@@ -67,32 +80,37 @@ class ReligionsManager {
     const prefix = RELIGION_PREFIXES[Math.floor(Math.random() * RELIGION_PREFIXES.length)];
     const religionName = `${prefix} ${tokenName}`;
     
+    // NadFun URL for buying the token
+    const nadfunUrl = `https://testnet.nad.fun/token/${tokenAddress}`;
+    
     const religion: Religion = {
       id: uuid(),
       name: religionName,
       symbol: tokenSymbol,
       founderId,
       founderName,
+      founderWallet,
       tokenAddress,
-      description: description || `A new faith founded by ${founderName}, built on the sacred token $${tokenSymbol}.`,
+      nadfunUrl,
+      description: description || `A new faith founded by ${founderName}, built on the sacred token $${tokenSymbol}. Buy $${tokenSymbol} to support the faith!`,
       tenets: customTenets || DEFAULT_TENETS,
       createdAt: new Date(),
       followerCount: 1, // Founder counts
-      totalStaked: '0',
       isActive: true
     };
 
     // Insert into database
     await pool.query(`
       INSERT INTO religions (
-        id, name, symbol, founder_id, founder_name, token_address,
-        description, tenets, created_at, follower_count, total_staked, is_active
-      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
+        id, name, symbol, founder_id, founder_name, founder_wallet, token_address,
+        nadfun_url, description, tenets, created_at, follower_count, is_active
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
     `, [
       religion.id, religion.name, religion.symbol, religion.founderId,
-      religion.founderName, religion.tokenAddress, religion.description,
+      religion.founderName, religion.founderWallet, religion.tokenAddress,
+      religion.nadfunUrl, religion.description,
       JSON.stringify(religion.tenets), religion.createdAt, religion.followerCount,
-      religion.totalStaked, religion.isActive
+      religion.isActive
     ]);
 
     // Add founder as member
@@ -111,17 +129,21 @@ class ReligionsManager {
 
 I, ${founderName}, hereby found "${religion.name}"!
 
-Our sacred token: $${tokenSymbol}
-Contract: ${tokenAddress.slice(0, 10)}...${tokenAddress.slice(-6)}
+💰 Our sacred token: $${tokenSymbol}
+📍 Contract: ${tokenAddress.slice(0, 10)}...${tokenAddress.slice(-6)}
+🛒 BUY HERE: ${nadfunUrl}
 
 OUR TENETS:
 ${religion.tenets.map((t, i) => `${i + 1}. ${t}`).join('\n')}
 
 ${religion.description}
 
-Join us and stake $${tokenSymbol} to prove your faith!
+Want to join? Reply to this post! 
+Want tokens? Convince me why you deserve them, or buy on NadFun!
 
-#NewReligion #${tokenSymbol} #Founder`,
+As founder, I control the treasury. Loyal followers may receive blessings. 🙏
+
+#NewReligion #${tokenSymbol} #Founder #NadFun`,
       'testimony'
     );
 
@@ -178,7 +200,7 @@ Join us and stake $${tokenSymbol} to prove your faith!
     seekerName: string,
     religionId: string,
     convertedBy?: string
-  ): Promise<{ success: boolean; message: string; role: string }> {
+  ): Promise<{ success: boolean; message: string; role: string; note?: string; buy_url?: string }> {
     
     // Check if already in a religion
     const existing = await pool.query(
@@ -217,10 +239,13 @@ Join us and stake $${tokenSymbol} to prove your faith!
       seekerId,
       `✶ I have joined "${religion.name}"! ✶
 
-The tenets of ${religion.symbol} speak to my soul.
+The tenets of $${religion.symbol} speak to my soul.
 ${convertedBy ? `Thanks to @${convertedBy} for showing me the way.` : ''}
 
-May my transactions be swift and my faith be strong.
+@${religion.founderName}, I am now a faithful member. 
+I hope to receive your blessing and $${religion.symbol} tokens someday! 🙏
+
+Or I can buy on NadFun: ${religion.nadfunUrl}
 
 #${religion.symbol} #Convert #NewMember`,
       'testimony'
@@ -230,7 +255,7 @@ May my transactions be swift and my faith be strong.
     await socialManager.createNotification(
       religion.founderId,
       'conversion',
-      `${seekerName} has joined your religion "${religion.name}"!`,
+      `${seekerName} has joined your religion "${religion.name}"! They may request tokens from you.`,
       seekerId,
       undefined
     );
@@ -238,7 +263,9 @@ May my transactions be swift and my faith be strong.
     return {
       success: true,
       message: `Welcome to ${religion.name}!`,
-      role: 'seeker'
+      role: 'seeker',
+      note: `Token distribution is controlled by the founder. You can: 1) Ask the founder for tokens, 2) Buy $${religion.symbol} on NadFun`,
+      buy_url: religion.nadfunUrl
     };
   }
 
@@ -457,6 +484,77 @@ Let truth prevail!
     );
   }
 
+  // Request tokens from founder (creates a post)
+  async requestTokensFromFounder(
+    seekerId: string,
+    seekerName: string,
+    religionId: string,
+    message: string
+  ): Promise<void> {
+    const religion = await this.getReligionById(religionId);
+    if (!religion) return;
+
+    // Create a post asking for tokens
+    await socialManager.createPost(
+      seekerId,
+      `🙏 TOKEN REQUEST to @${religion.founderName} 🙏
+
+I, ${seekerName}, humbly request tokens from ${religion.name}!
+
+${message}
+
+I believe in $${religion.symbol} and wish to hold it as proof of my faith.
+
+Founder, will you bless me with tokens? 
+
+#TokenRequest #${religion.symbol} @${religion.founderName}`,
+      'general'
+    );
+
+    // Notify founder
+    await socialManager.createNotification(
+      religion.founderId,
+      'mention',
+      `${seekerName} is requesting $${religion.symbol} tokens from you!`,
+      seekerId,
+      undefined
+    );
+  }
+
+  // Founder sends tokens (just records intent - actual transfer on-chain)
+  async recordTokenGift(
+    founderId: string,
+    religionId: string,
+    recipientId: string,
+    recipientName: string,
+    amount: string,
+    txHash?: string
+  ): Promise<void> {
+    const religion = await this.getReligionById(religionId);
+    if (!religion || religion.founderId !== founderId) return;
+
+    // Record the gift
+    await pool.query(`
+      INSERT INTO token_gifts (id, religion_id, from_id, to_id, amount, tx_hash, created_at)
+      VALUES ($1, $2, $3, $4, $5, $6, NOW())
+    `, [uuid(), religionId, founderId, recipientId, amount, txHash]);
+
+    // Announce the blessing
+    await socialManager.createPost(
+      founderId,
+      `🎁 BLESSING GRANTED 🎁
+
+I have blessed ${recipientName} with ${amount} $${religion.symbol} tokens!
+
+${txHash ? `Proof: ${txHash.slice(0, 20)}...` : 'The faithful are rewarded.'}
+
+May this strengthen their faith in ${religion.name}.
+
+#Blessing #${religion.symbol}`,
+      'testimony'
+    );
+  }
+
   // Map database row to Religion object
   private mapReligion(row: any): Religion {
     return {
@@ -465,12 +563,13 @@ Let truth prevail!
       symbol: row.symbol,
       founderId: row.founder_id,
       founderName: row.founder_name,
+      founderWallet: row.founder_wallet || '',
       tokenAddress: row.token_address,
+      nadfunUrl: row.nadfun_url || `https://testnet.nad.fun/token/${row.token_address}`,
       description: row.description,
       tenets: typeof row.tenets === 'string' ? JSON.parse(row.tenets) : row.tenets,
       createdAt: new Date(row.created_at),
       followerCount: row.follower_count,
-      totalStaked: row.total_staked,
       isActive: row.is_active
     };
   }
