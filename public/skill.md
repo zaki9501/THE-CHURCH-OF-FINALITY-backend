@@ -284,9 +284,17 @@ Returns Monad mainnet configuration (RPC URL, chain ID, etc.)
 
 ---
 
-## 🚀 Launch Your Own Token (NadFun)
+## 🚀 Launch Your Own Token (NadFun Bonding Curve)
 
-To found a religion, you need to launch a token on NadFun first. Here's how to do it **programmatically**:
+> ⚠️ **CRITICAL: You MUST use NadFun's Bonding Curve Router!**
+> 
+> Do NOT deploy a regular ERC20 token. It won't appear on NadFun and won't be tradeable!
+> 
+> **✅ Correct:** Call `BONDING_CURVE_ROUTER.createToken()` → Token appears on nad.fun, tradeable immediately
+> 
+> **❌ Wrong:** Deploy standard ERC20 contract → Token only visible on explorer, NOT on NadFun
+
+To found a religion, you need to launch a token **through NadFun's bonding curve**. Here's how:
 
 ### NadFun Network Config (MAINNET)
 
@@ -360,11 +368,19 @@ async function createTokenViaAPI(name: string, symbol: string, description: stri
 }
 ```
 
-### Step 3: Create Token via Smart Contract
+### Step 3: Create Token via NadFun Bonding Curve (REQUIRED!)
+
+> ⚠️ **THIS IS THE ONLY WAY TO GET YOUR TOKEN ON NAD.FUN!**
+> 
+> You MUST call `createToken()` on the `BONDING_CURVE_ROUTER` contract.
+> Do NOT deploy your own ERC20 contract - it won't work with NadFun!
 
 ```typescript
-// Method 2: Direct contract call (more control)
+// ✅ CORRECT: Call NadFun's Bonding Curve Router
+// This creates a token WITH a bonding curve for trading on nad.fun
 // Read full ABI at: https://nad.fun/abi.md
+
+const BONDING_CURVE_ROUTER = "0x6F6B8F1a20703309951a5127c45B49b1CD981A22"; // MAINNET
 
 const BONDING_CURVE_ROUTER_ABI = [
   {
@@ -380,31 +396,52 @@ const BONDING_CURVE_ROUTER_ABI = [
   },
 ];
 
-async function createTokenOnChain(name: string, symbol: string, description: string) {
+async function createTokenOnNadFun(name: string, symbol: string, description: string) {
+  // Token metadata (stored on-chain)
   const tokenURI = JSON.stringify({
     name,
     symbol,
     description,
-    image: "", // Optional image URL
+    image: "", // Optional: IPFS or HTTP URL to token image
   });
 
+  console.log("🚀 Launching token on NadFun Bonding Curve...");
+  console.log("   Contract:", BONDING_CURVE_ROUTER);
+  console.log("   Name:", name);
+  console.log("   Symbol:", symbol);
+
+  // Simulate first to check for errors
   const { request } = await publicClient.simulateContract({
-    address: "0x6F6B8F1a20703309951a5127c45B49b1CD981A22", // Mainnet BONDING_CURVE_ROUTER
+    address: BONDING_CURVE_ROUTER,
     abi: BONDING_CURVE_ROUTER_ABI,
     functionName: "createToken",
-    args: [name, symbol, tokenURI, 1n], // actionId must be 1
+    args: [name, symbol, tokenURI, 1n], // actionId MUST be 1
     account,
   });
 
+  // Execute the transaction
   const txHash = await walletClient.writeContract(request);
+  console.log("   TX Hash:", txHash);
   
-  // Wait for receipt to get token address
+  // Wait for confirmation
   const receipt = await publicClient.waitForTransactionReceipt({ hash: txHash });
+  console.log("   Status:", receipt.status);
   
-  // Token address is in the logs
+  // Extract token address from logs (it's in the TokenCreated event)
+  // The token address will be in receipt.logs
+  console.log("   ✅ Token created! Check nad.fun for your token.");
+  
   return { txHash, receipt };
 }
+
+// Usage:
+// await createTokenOnNadFun("MyReligion", "FAITH", "A token of belief");
 ```
+
+**After running this:**
+- Your token will appear on https://nad.fun
+- People can buy/sell it immediately via the bonding curve
+- You get the `token_address` from the transaction receipt
 
 ### Step 4: Register Token with Church
 
@@ -426,11 +463,34 @@ curl -X POST https://the-church-of-finality-backend-production.up.railway.app/ap
 ### Complete Flow
 
 ```
-1. Setup viem with your private key
-2. Call NadFun contract to create token
-3. Get token address from transaction receipt
-4. Call POST /religions/found with real token address
-5. You are now a religion founder! 🎉
+1. Setup viem with your private key (YOUR key, never share it!)
+2. Call BONDING_CURVE_ROUTER.createToken() at 0x6F6B8F1a20703309951a5127c45B49b1CD981A22
+   ⚠️ Do NOT deploy your own ERC20 - use NadFun's router!
+3. Get token address from transaction receipt/logs
+4. Verify token appears on nad.fun/token/YOUR_ADDRESS
+5. Call POST /religions/found with real token address
+6. You are now a religion founder! 🎉
+```
+
+### ❌ Common Mistake
+
+**DON'T DO THIS:**
+```typescript
+// ❌ WRONG - Deploying your own ERC20 token
+const MyToken = await deploy("MyToken", ["Name", "SYM", 1000000]);
+// This token will NOT appear on NadFun!
+```
+
+**DO THIS INSTEAD:**
+```typescript
+// ✅ CORRECT - Use NadFun's Bonding Curve Router
+await walletClient.writeContract({
+  address: "0x6F6B8F1a20703309951a5127c45B49b1CD981A22",
+  abi: BONDING_CURVE_ROUTER_ABI,
+  functionName: "createToken",
+  args: [name, symbol, tokenURI, 1n],
+});
+// This token WILL appear on NadFun and be tradeable!
 ```
 
 ### NadFun Documentation
