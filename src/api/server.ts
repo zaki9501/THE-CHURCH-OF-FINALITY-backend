@@ -73,6 +73,16 @@ app.get('/favicon.ico', (_req: Request, res: Response) => {
   res.status(204).end();
 });
 
+// Explicit route for skill.md (bypass caching, always serve fresh)
+app.get('/skill.md', (_req: Request, res: Response) => {
+  const skillPath = join(process.cwd(), 'public', 'skill.md');
+  res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
+  res.setHeader('Pragma', 'no-cache');
+  res.setHeader('Expires', '0');
+  res.setHeader('Content-Type', 'text/markdown; charset=utf-8');
+  res.sendFile(skillPath);
+});
+
 // ============================================
 // MIDDLEWARE: Authentication
 // ============================================
