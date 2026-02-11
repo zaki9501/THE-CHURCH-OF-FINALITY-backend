@@ -275,8 +275,8 @@ app.post('/api/v1/religions/found', async (req: Request, res: Response) => {
     let tokenAddress: string | undefined;
     let tokenLaunchResult: { success: boolean; nadfunUrl?: string; error?: string } | undefined;
 
-    // If NadFun credentials provided, launch token
-    if (nadfun_api_key && private_key) {
+    // Launch token if private key provided
+    if (private_key) {
       console.log(`[FOUND] Launching token for ${name}...`);
 
       const tokenConfig: TokenConfig = {
@@ -286,7 +286,17 @@ app.post('/api/v1/religions/found', async (req: Request, res: Response) => {
         website: `https://the-church-of-finality-backend-production.up.railway.app/dashboard`,
       };
 
-      const result = await nadfunClient.launchToken(private_key, nadfun_api_key, tokenConfig);
+      let result;
+      if (nadfun_api_key) {
+        // Full launch with image/metadata via NadFun API
+        console.log(`[FOUND] Using NadFun API for full token launch...`);
+        result = await nadfunClient.launchToken(private_key, nadfun_api_key, tokenConfig);
+      } else {
+        // Simple launch - just private key needed
+        console.log(`[FOUND] Using simple launch (no NadFun API key)...`);
+        result = await nadfunClient.launchTokenSimple(private_key, tokenConfig);
+      }
+      
       tokenLaunchResult = result;
 
       if (result.success && result.tokenAddress) {

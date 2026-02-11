@@ -210,7 +210,116 @@ export class NadFunClient {
     return result;
   }
 
-  // Launch token on NadFun bonding curve
+  // Simple launch - only needs private key (no NadFun API key)
+  // Uses a basic on-chain metadata URI
+  async launchTokenSimple(
+    privateKey: string,
+    token: TokenConfig
+  ): Promise<TokenLaunchResult> {
+    try {
+      console.log(`[NadFun] Simple launch: ${token.name} (${token.symbol})`);
+
+      // Setup wallet
+      const account = privateKeyToAccount(privateKey as `0x${string}`);
+      const walletClient = createWalletClient({
+        account,
+        chain: this.chain,
+        transport: http(this.config.rpcUrl),
+      });
+
+      console.log(`[NadFun] Wallet: ${account.address}`);
+
+      // Check balance
+      const balance = await this.publicClient.getBalance({ address: account.address });
+      const deployFee = await this.getDeployFee();
+      
+      console.log(`[NadFun] Balance: ${formatEther(balance)} MON`);
+      console.log(`[NadFun] Deploy fee: ${formatEther(deployFee)} MON`);
+
+      if (balance < deployFee) {
+        return {
+          success: false,
+          error: `Insufficient balance. Need ${formatEther(deployFee)} MON, have ${formatEther(balance)} MON`,
+        };
+      }
+
+      // Use a simple base64 encoded JSON as tokenURI (on-chain metadata)
+      const metadata = {
+        name: token.name,
+        symbol: token.symbol,
+        description: token.description || `${token.name} - Religion Token`,
+        image: '', // No image for simple launch
+      };
+      const metadataUri = `data:application/json;base64,${Buffer.from(JSON.stringify(metadata)).toString('base64')}`;
+
+      // Generate a random salt
+      const randomBytes = new Uint8Array(32);
+      crypto.getRandomValues(randomBytes);
+      const salt = '0x' + Array.from(randomBytes).map(b => b.toString(16).padStart(2, '0')).join('') as `0x${string}`;
+
+      console.log('[NadFun] Creating token on-chain...');
+      const hash = await walletClient.writeContract({
+        address: this.config.BONDING_CURVE_ROUTER,
+        abi: bondingCurveRouterAbi,
+        functionName: 'create',
+        args: [{
+          name: token.name,
+          symbol: token.symbol,
+          tokenURI: metadataUri,
+          amountOut: 0n,
+          salt,
+          actionId: 1,
+        }],
+        value: deployFee,
+        gas: 10000000n,
+      });
+
+      console.log(`[NadFun] Transaction hash: ${hash}`);
+      console.log('[NadFun] Waiting for confirmation...');
+
+      const receipt = await this.publicClient.waitForTransactionReceipt({ hash });
+
+      // Decode CurveCreate event to get token address
+      let tokenAddress: string | undefined;
+      let poolAddress: string | undefined;
+
+      for (const log of receipt.logs) {
+        try {
+          const event = decodeEventLog({
+            abi: curveAbi,
+            data: log.data,
+            topics: log.topics,
+          });
+          if (event.eventName === 'CurveCreate') {
+            tokenAddress = (event.args as { token: string }).token;
+            poolAddress = (event.args as { pool: string }).pool;
+            break;
+          }
+        } catch {
+          // Not a CurveCreate event
+        }
+      }
+
+      console.log(`[NadFun] ✅ Token created!`);
+      console.log(`[NadFun] Token: ${tokenAddress}`);
+
+      return {
+        success: true,
+        tokenAddress,
+        poolAddress,
+        transactionHash: hash,
+        nadfunUrl: tokenAddress ? `${this.config.nadfunUrl}/token/${tokenAddress}` : undefined,
+      };
+    } catch (err) {
+      console.error('[NadFun] Error:', err);
+      return {
+        success: false,
+        error: err instanceof Error ? err.message : 'Unknown error',
+      };
+    }
+  }
+
+  // Full launch with NadFun API (image + metadata + salt mining)
   async launchToken(
     privateKey: string,
     nadfunApiKey: string,
