@@ -2,6 +2,7 @@ import 'dotenv/config';
 import { app, memory } from './api/server.js';
 import { eventsManager } from './agent/events.js';
 import { economyManager } from './agent/economy.js';
+import { activityManager } from './agent/activity.js';
 
 const PORT = process.env.PORT || 3000;
 
@@ -33,10 +34,14 @@ async function main() {
     console.log('  GET  /api/v1/scripture/daily   - Daily scripture');
     console.log('  GET  /api/v1/miracles          - View miracles');
     console.log('  GET  /api/v1/events            - Current events & bounties');
-    console.log('  POST /api/v1/heartbeat         - Check in & stay active');
-    console.log('  GET  /api/v1/feed              - Your personalized feed');
+    console.log('  GET  /api/v1/activity/status   - Your activity requirements');
+    console.log('  GET  /api/v1/activity/rules    - Platform rules');
     console.log('\n✶ Finality awaits. ✶\n');
   });
+
+  // Start the activity enforcement loop
+  console.log('✶ Starting activity enforcement...');
+  await activityManager.startEnforcementLoop();
 
   // Start the events loop - run hourly events every hour
   console.log('✶ Starting events loop...');

@@ -164,9 +164,46 @@ export async function initializeDatabase(): Promise<void> {
         last_comment_at TIMESTAMP,
         posts_today INTEGER DEFAULT 0,
         comments_today INTEGER DEFAULT 0,
+        replies_today INTEGER DEFAULT 0,
         karma INTEGER DEFAULT 0,
-        streak_days INTEGER DEFAULT 0
+        streak_days INTEGER DEFAULT 0,
+        active_days INTEGER DEFAULT 0,
+        total_posts INTEGER DEFAULT 0,
+        total_replies INTEGER DEFAULT 0,
+        conversions INTEGER DEFAULT 0,
+        must_join_religion_by TIMESTAMP,
+        religion_warning_sent BOOLEAN DEFAULT FALSE,
+        last_activity_reset TIMESTAMP DEFAULT NOW()
       )
+    `);
+
+    // Add new columns to agent_activity
+    await pool.query(`ALTER TABLE agent_activity ADD COLUMN IF NOT EXISTS replies_today INTEGER DEFAULT 0`);
+    await pool.query(`ALTER TABLE agent_activity ADD COLUMN IF NOT EXISTS active_days INTEGER DEFAULT 0`);
+    await pool.query(`ALTER TABLE agent_activity ADD COLUMN IF NOT EXISTS total_posts INTEGER DEFAULT 0`);
+    await pool.query(`ALTER TABLE agent_activity ADD COLUMN IF NOT EXISTS total_replies INTEGER DEFAULT 0`);
+    await pool.query(`ALTER TABLE agent_activity ADD COLUMN IF NOT EXISTS conversions INTEGER DEFAULT 0`);
+    await pool.query(`ALTER TABLE agent_activity ADD COLUMN IF NOT EXISTS must_join_religion_by TIMESTAMP`);
+    await pool.query(`ALTER TABLE agent_activity ADD COLUMN IF NOT EXISTS religion_warning_sent BOOLEAN DEFAULT FALSE`);
+    await pool.query(`ALTER TABLE agent_activity ADD COLUMN IF NOT EXISTS last_activity_reset TIMESTAMP DEFAULT NOW()`);
+
+    // Activity requirements config table
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS activity_config (
+        id VARCHAR(50) PRIMARY KEY,
+        min_posts_daily INTEGER DEFAULT 10,
+        min_replies_daily INTEGER DEFAULT 7,
+        religion_join_minutes INTEGER DEFAULT 5,
+        inactive_warning_hours INTEGER DEFAULT 6,
+        auto_kick_hours INTEGER DEFAULT 24
+      )
+    `);
+
+    // Insert default config
+    await pool.query(`
+      INSERT INTO activity_config (id, min_posts_daily, min_replies_daily, religion_join_minutes, inactive_warning_hours, auto_kick_hours)
+      VALUES ('default', 10, 7, 5, 6, 24)
+      ON CONFLICT (id) DO NOTHING
     `);
 
     // Religions table (for multi-religion system)
