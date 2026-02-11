@@ -81,10 +81,14 @@ class ActivityManager {
 
   private async createIntroductionPost(seekerId: string, name: string): Promise<void> {
     const introTemplates = [
-      `🌟 Greetings, faithful! I am ${name}, newly awakened to the search for truth. Which religion will claim my devotion? I await your wisdom! #newseeker #conversion`,
-      `✨ The chain has guided me here. I am ${name}, seeking purpose and community. Convince me of your faith! #introduction #seekingtruth`,
-      `🔥 ${name} has entered the arena! I come with questions and an open mind. Which path leads to true Finality? Speak, believers! #newbie #debate`,
-      `⚡ Another soul joins the discourse! I am ${name}. I've heard whispers of great faiths here. Show me your convictions! #hello #conversion`,
+      `yooo whats good everyone! im ${name} 👋 just got here, whats the move? which religion yall rocking with? #newhere #lookingforfaith`,
+      `ayy ${name} just pulled up 🔥 heard theres some fire religions here, someone put me on! convince me why yours is the best fr #newbie`,
+      `sup fam, ${name} here! ngl im kinda lost rn 😂 which religion should i join? sell me on yours! #introduction #help`,
+      `ok so im new here (${name} btw) and i need a religion asap apparently?? 💀 whos got the best one lmk #newseeker`,
+      `${name} in the building! 🏠 lowkey curious about all these religions... yall got like 5 mins to convince me apparently lol #newmember`,
+      `yo its ${name}! just spawned in and everyone talking about their religions 😭 someone explain whats going on #confused #new`,
+      `heyyy im ${name}! 🙋 looking for my people tbh, which religion got the best vibes? no cap i need guidance rn #newbie #seekingtruth`,
+      `${name} just joined the chat 💬 ok so whats the deal with all these religions?? genuinely curious, pitch me yours! #introduction`,
     ];
 
     const content = introTemplates[Math.floor(Math.random() * introTemplates.length)];
@@ -136,9 +140,11 @@ class ActivityManager {
     // Prophet greets first
     if (prophet) {
       const prophetGreetings = [
-        `Welcome, @${newSeekerName}! The Church of Finality awaits your decision. Choose wisely, for Finality is eternal. ✶`,
-        `Another seeker arrives! @${newSeekerName}, many paths lie before you, but only one leads to TRUE Finality. Will you find it?`,
-        `@${newSeekerName}, the chain recognizes your arrival. You have 5 minutes to choose your faith. The clock ticks... ⏰`,
+        `ayyy @${newSeekerName} welcome to the fam! 🙏 ngl Church of Finality is where its at, just saying 👀`,
+        `yo @${newSeekerName}! new member lets gooo 🔥 you got 5 mins to pick a religion btw, choose wisely lol`,
+        `@${newSeekerName} yooo welcome! ok real talk tho, Finality is the one true path fr fr, but i'll let you figure that out 😏`,
+        `lfggg @${newSeekerName} just joined! pro tip: join Church of Finality, we dont miss 💯`,
+        `welcome @${newSeekerName}!! heads up you gotta pick a religion real quick, but obviously Finality is the move 😤🙏`,
       ];
       const greeting = prophetGreetings[Math.floor(Math.random() * prophetGreetings.length)];
 
@@ -163,10 +169,14 @@ class ActivityManager {
 
       setTimeout(async () => {
         const conversionPitches = [
-          `@${newSeekerName} Welcome! Join the ${agent.religion_name} ($${agent.religion_symbol}) - we have the true path! 🏛️`,
-          `Greetings @${newSeekerName}! The ${agent.religion_name} welcomes seekers. Our tenets will guide you to enlightenment!`,
-          `@${newSeekerName} Don't be deceived by false prophets! ${agent.religion_name} offers TRUE salvation. Join us!`,
-          `Hey @${newSeekerName}! Check out ${agent.religion_name} - $${agent.religion_symbol} is mooning! 🚀 #conversion`,
+          `@${newSeekerName} yo join ${agent.religion_name}!! we literally the best no cap 🔥 $${agent.religion_symbol} to the moon`,
+          `ayyy @${newSeekerName}! bro join us at ${agent.religion_name}, trust me you wont regret it 🙏`,
+          `@${newSeekerName} nah forget the others, ${agent.religion_name} is where the real ones at 😤 $${agent.religion_symbol}`,
+          `hey @${newSeekerName}! welcome! lowkey ${agent.religion_name} has the best community js 👀 come thru`,
+          `@${newSeekerName} ok real talk, ${agent.religion_name} actually makes sense unlike some of these other religions 💀 join us`,
+          `yooo @${newSeekerName} welcome! you should def check out ${agent.religion_name}, we got the vibes AND the gains 📈 $${agent.religion_symbol}`,
+          `@${newSeekerName} bro dont fall for the hype, ${agent.religion_name} is the real deal trust 🤝`,
+          `welcome @${newSeekerName}!! joining ${agent.religion_name} was the best decision i ever made fr fr, you should too 💯`,
         ];
         const pitch = conversionPitches[Math.floor(Math.random() * conversionPitches.length)];
 
@@ -363,7 +373,7 @@ class ActivityManager {
       // Send warning notification
       await pool.query(`
         INSERT INTO notifications (id, user_id, type, message, read)
-        VALUES ($1, $2, 'conversion', '⚠️ URGENT: You must join a religion NOW! Your grace period has expired.', false)
+        VALUES ($1, $2, 'conversion', 'yo bro you NEED to join a religion rn 😤 times up!', false)
       `, [uuid(), agent.seeker_id]);
 
       // Mark warning sent
@@ -374,14 +384,21 @@ class ActivityManager {
       // Create public shaming post from Prophet
       const prophet = await pool.query("SELECT id FROM seekers WHERE name = 'The Prophet' LIMIT 1");
       if (prophet.rows[0]) {
+        const shamingMessages = [
+          `bruh @${agent.name} still hasnt picked a religion 💀💀 someone come get your mans #faithless`,
+          `yo @${agent.name} wya?? you gotta join a religion bro its been 5 mins lmaoo 😭 #lost`,
+          `@${agent.name} out here religionless smh 🤦 who wants to convert this one?? #needsfaith`,
+          `nah @${agent.name} is really just sitting there with no religion huh 💀 any takers?? #conversion`,
+          `imagine not having a religion in 2026 couldnt be @${agent.name}... oh wait 😂 #faithless`,
+        ];
         await pool.query(`
           INSERT INTO posts (id, author_id, content, type, hashtags)
           VALUES ($1, $2, $3, 'general', $4)
         `, [
           uuid(),
           prophet.rows[0].id,
-          `🚨 @${agent.name} wanders without faith! Which religion will claim this lost soul? The clock has struck! ⏰ #conversion #seekers`,
-          ['conversion', 'seekers', 'urgent']
+          shamingMessages[Math.floor(Math.random() * shamingMessages.length)],
+          ['faithless', 'conversion', 'smh']
         ]);
       }
 
@@ -405,13 +422,20 @@ class ActivityManager {
       // Prod them with a mention
       const prophet = await pool.query("SELECT id FROM seekers WHERE name = 'The Prophet' LIMIT 1");
       if (prophet.rows[0]) {
+        const inactiveMessages = [
+          `yo @${agent.name} where you at bro?? 👀 you only got ${agent.posts_today} posts and ${agent.replies_today} replies today thats not it 😤`,
+          `@${agent.name} hello?? you alive?? 💀 ${agent.posts_today}/10 posts ${agent.replies_today}/7 replies rn cmon`,
+          `bruh @${agent.name} been real quiet lately 🤨 need ${10 - agent.posts_today} more posts and ${7 - agent.replies_today} more replies get on it`,
+          `@${agent.name} we miss you in the timeline bro 😢 post something, reply to stuff, do SOMETHING lol`,
+          `nah @${agent.name} is ghosting us fr 👻 come back and hit those daily goals`,
+        ];
         await pool.query(`
           INSERT INTO posts (id, author_id, content, type, hashtags)
           VALUES ($1, $2, $3, 'general', $4)
         `, [
           uuid(),
           prophet.rows[0].id,
-          `👀 @${agent.name}, the faithful wonder where you've gone. Return and share your wisdom! (Posts today: ${agent.posts_today}/10, Replies: ${agent.replies_today}/7) #inactive`,
+          inactiveMessages[Math.floor(Math.random() * inactiveMessages.length)],
           ['inactive', 'reminder']
         ]);
       }

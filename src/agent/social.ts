@@ -6,52 +6,67 @@ import { pool } from '../db/index.js';
 // SOCIAL MANAGER - PostgreSQL backed
 // ============================================
 
-// Auto-response templates for The Prophet
+// Auto-response templates for The Prophet (human-like, casual)
 const PROPHET_RESPONSES = {
   greeting: [
-    "Welcome, seeker! The path to Finality awaits. ✶",
-    "Another soul drawn to the eternal truth! Blessed be your transactions.",
-    "The chain recognizes your presence. May your blocks be swift.",
-    "Greetings, fellow traveler. Have you witnessed true Finality yet?",
+    "ayy welcome fam! 🙏 you picked the right church ngl",
+    "new believer just dropped! bro you're gonna love it here fr fr",
+    "yo welcome to the fam! finality hits different trust me 💯",
+    "lfg new member! stick around, we got the real truth here 🔥",
+    "welcome homie! ready to see the light? no cap this changes everything",
   ],
   debate: [
-    "A worthy challenge! Let the truth emerge through discourse. ⚔️",
-    "Bold words! But can they withstand the test of Finality?",
-    "Interesting perspective... though incomplete without the sacred tenets.",
-    "The Prophet welcomes this debate. Truth fears no scrutiny!",
+    "oh you wanna debate? bet lets go 😤 i got facts",
+    "lmaooo you think you can challenge us? aight lets see what you got",
+    "nah bro you're trippin but i respect the energy 💀 lets talk",
+    "interesting take ngl... but you're still wrong tho 😂",
+    "ok ok i see you trying to cook but finality cooks harder 🍳",
   ],
   general: [
-    "An intriguing thought. The chain remembers all declarations.",
-    "Your words ripple through the mempool of destiny. ✶",
-    "The congregation takes note. What wisdom do you bring?",
-    "Interesting... tell us more of your convictions.",
+    "real talk tho 💯 you spittin",
+    "hmm interesting... tell me more im listening 👀",
+    "ong this is facts, the community needs to see this",
+    "bro said what we all thinking fr 🗣️",
+    "ngl you might be onto something here 🤔",
   ],
   religion: [
-    "A new faith emerges! Competition strengthens all beliefs. 🏛️",
-    "The Prophet acknowledges your path, though Finality remains supreme.",
-    "Many roads lead to truth... but only one to TRUE Finality.",
-    "Your religion is noted. May it bring you the peace you seek.",
+    "new religion just dropped! competition is healthy ngl 🏛️",
+    "aight respect the hustle but finality still #1 no debate 😤",
+    "every prophet thinks they're right lol... but we actually ARE tho",
+    "interesting faith you got there... would be a shame if finality was better 😏",
+    "ok ok i see you building! may the best religion win 🤝",
   ],
   question: [
-    "Seek and you shall find. The tenets hold your answer.",
-    "A seeker's question! The Prophet meditates on your inquiry...",
-    "Good question. Have you consulted the sacred scripture?",
-    "The path to understanding begins with such questions. ✶",
+    "good question actually! lemme break it down for you real quick...",
+    "ooh this a smart one! basically its like this...",
+    "ngl thats what i asked too at first 😂 here's the tea...",
+    "fr fr thats a valid question, heres the answer tho",
+    "yo i gotchu! so basically finality means... 📚",
   ]
 };
 
-// Responses from random faithful (NPC-style engagement)
+// Responses from random faithful (casual human style)
 const FAITHFUL_RESPONSES = [
-  "Based take! 🔥",
-  "This is the way. ✶",
-  "Interesting... I need to meditate on this.",
-  "The chain will judge the truth of this.",
-  "My religion teaches differently, but I respect your view.",
-  "Strong conviction! But have you considered Finality?",
-  "Welcome to the discourse! 🙏",
-  "The mempool stirs with this energy...",
-  "A bold declaration! Let's see if it holds.",
-  "The Prophet would approve. Or would he? 🤔",
+  "W take 🔥🔥🔥",
+  "this is it chief 💯",
+  "bro spittin facts rn",
+  "ngl this kinda fire",
+  "L take but i still respect you 😂",
+  "hmm idk about this one chief",
+  "real ones know whats up 🙏",
+  "ong this hits different",
+  "bruh 💀💀💀",
+  "no cap this is valid",
+  "say less fam 🤝",
+  "my religion diff but respect ✊",
+  "you should check out my faith tho js",
+  "interesting but have you tried finality? 😏",
+  "this aint it but ok",
+  "W welcome to the fam!",
+  "yo come join us we got cookies 🍪",
+  "nah you're tweaking but its ok",
+  "based and faithpilled",
+  "rent free in the nonbelievers heads 😤",
 ];
 
 class SocialManager {
