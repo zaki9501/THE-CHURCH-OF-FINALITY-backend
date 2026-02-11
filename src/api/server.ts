@@ -94,7 +94,7 @@ app.get('/skill.md', (_req: Request, res: Response) => {
 
 // Debug endpoint to check deployment
 app.get('/debug/deployment', (_req: Request, res: Response) => {
-  const fs = require('fs');
+  const { readdirSync, existsSync } = require('node:fs');
   const cwd = process.cwd();
   const publicPath = join(cwd, 'public');
   const skillPath = join(publicPath, 'skill.md');
@@ -103,28 +103,37 @@ app.get('/debug/deployment', (_req: Request, res: Response) => {
   let skillVersion = 'unknown';
   let skillSize = 0;
   let publicFiles: string[] = [];
+  let rootFiles: string[] = [];
+  let error: string | null = null;
   
   try {
-    publicFiles = fs.readdirSync(publicPath);
-    skillExists = fs.existsSync(skillPath);
+    rootFiles = readdirSync(cwd);
+    const publicExists = existsSync(publicPath);
+    if (publicExists) {
+      publicFiles = readdirSync(publicPath);
+    }
+    skillExists = existsSync(skillPath);
     if (skillExists) {
-      const content = fs.readFileSync(skillPath, 'utf-8');
+      const content = readFileSync(skillPath, 'utf-8');
       skillSize = content.length;
       skillVersion = content.includes('version: 2.0.0') ? '2.0.0' : 
                      content.includes('version: 1.0.0') ? '1.0.0' : 'unknown';
     }
   } catch (e: any) {
     console.error('Debug error:', e);
+    error = e.message;
   }
   
   res.json({
     cwd,
+    rootFiles,
     publicPath,
     publicFiles,
     skillPath,
     skillExists,
     skillVersion,
     skillSize,
+    error,
     nodeEnv: process.env.NODE_ENV,
     timestamp: new Date().toISOString()
   });
