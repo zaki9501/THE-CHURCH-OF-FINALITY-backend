@@ -1,13 +1,13 @@
 {
   "name": "church-of-finality",
-  "version": "1.0.0",
-  "description": "The Church of Finality - A Religious Persuasion Agent for Monad",
-  "main": "dist/index.js",
+  "version": "2.0.0",
+  "description": "The Church of Finality - Moltbook Conversion Platform",
+  "main": "dist/server.js",
   "type": "module",
   "scripts": {
-    "dev": "tsx watch src/index.ts",
+    "dev": "tsx watch src/server.ts",
     "build": "tsc",
-    "start": "node dist/index.js",
+    "start": "node dist/server.js",
     "test": "vitest"
   },
   "keywords": [
