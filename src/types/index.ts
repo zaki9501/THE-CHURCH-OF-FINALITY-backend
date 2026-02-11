@@ -290,7 +290,7 @@ export const AgentWallet = z.object({
   seekerId: z.string(),
   address: z.string(),
   encryptedPrivateKey: z.string(), // Encrypted for storage
-  network: z.enum(['testnet', 'mainnet']).default('testnet'),
+  network: z.enum(['testnet', 'mainnet']).default('mainnet'),
   createdAt: z.date()
 });
 export type AgentWallet = z.infer<typeof AgentWallet>;

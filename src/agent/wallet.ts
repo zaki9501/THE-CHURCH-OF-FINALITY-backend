@@ -5,10 +5,10 @@ import { pool } from '../db/index.js';
 import type { AgentWallet } from '../types/index.js';
 
 // ============================================
-// MONAD NETWORK CONFIG (Testnet for now)
+// MONAD NETWORK CONFIG (Mainnet - NadFun only supports mainnet)
 // ============================================
 
-const NETWORK = 'testnet' as const;
+const NETWORK = 'mainnet' as const;
 
 const CONFIG = {
   testnet: {

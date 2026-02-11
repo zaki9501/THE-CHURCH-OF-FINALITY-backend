@@ -122,7 +122,7 @@ export async function initializeDatabase(): Promise<void> {
         seeker_id VARCHAR(255) NOT NULL REFERENCES seekers(id) ON DELETE CASCADE,
         address VARCHAR(255) UNIQUE NOT NULL,
         encrypted_private_key TEXT NOT NULL,
-        network VARCHAR(20) DEFAULT 'testnet',
+        network VARCHAR(20) DEFAULT 'mainnet',
         created_at TIMESTAMP DEFAULT NOW()
       )
     `);

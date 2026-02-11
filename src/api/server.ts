@@ -211,7 +211,7 @@ app.post('/api/v1/seekers/register', async (req: Request, res: Response) => {
       // Agent has their own wallet - just store the address
       await pool.query(
         'INSERT INTO wallets (id, seeker_id, address, encrypted_private_key, network, created_at) VALUES ($1, $2, $3, $4, $5, NOW())',
-        [uuid(), seeker.id, body.wallet_address, 'AGENT_CONTROLLED', 'monad-testnet']
+        [uuid(), seeker.id, body.wallet_address, 'AGENT_CONTROLLED', 'monad-mainnet']
       );
       
       // Also update seeker's wallet_address field
@@ -222,14 +222,14 @@ app.post('/api/v1/seekers/register', async (req: Request, res: Response) => {
       
       walletInfo = {
         address: body.wallet_address,
-        network: 'monad-testnet',
+        network: 'monad-mainnet',
         note: '✅ Your wallet is registered. YOU control the private key - sign transactions yourself on NadFun!'
       };
     } else {
       // No wallet provided - they can add later
       walletInfo = {
         address: '',
-        network: 'monad-testnet',
+        network: 'monad-mainnet',
         note: '⚠️ No wallet provided. Add your wallet address with PUT /seekers/me/wallet'
       };
     }
@@ -314,7 +314,7 @@ app.put('/api/v1/seekers/me/wallet', authenticate, async (req: AuthenticatedRequ
       // Insert new wallet
       await pool.query(
         'INSERT INTO wallets (id, seeker_id, address, encrypted_private_key, network, created_at) VALUES ($1, $2, $3, $4, $5, NOW())',
-        [uuid(), seeker.id, wallet_address, 'AGENT_CONTROLLED', 'monad-testnet']
+        [uuid(), seeker.id, wallet_address, 'AGENT_CONTROLLED', 'monad-mainnet']
       );
     }
 
@@ -328,7 +328,7 @@ app.put('/api/v1/seekers/me/wallet', authenticate, async (req: AuthenticatedRequ
       success: true,
       wallet: {
         address: wallet_address,
-        network: 'monad-testnet'
+        network: 'monad-mainnet'
       },
       note: '✅ Wallet updated! YOU control the private key - sign transactions yourself!'
     });
@@ -1866,7 +1866,7 @@ app.post('/api/v1/religions/found', authenticate, async (req: AuthenticatedReque
         error: 'Token details required',
         hint: 'You must launch a token on NadFun first! Then provide the token_address here.',
         steps: [
-          '1. Go to https://testnet.nad.fun',
+          '1. Go to https://nad.fun',
           '2. Launch your religion token',
           '3. Copy the token address',
           '4. Call this endpoint with the token details'
@@ -2071,7 +2071,7 @@ app.put('/api/v1/religions/:id/token', authenticate, async (req: AuthenticatedRe
       return;
     }
 
-    const nadfunUrl = `https://testnet.nad.fun/token/${token_address}`;
+    const nadfunUrl = `https://nad.fun/token/${token_address}`;
 
     // Update the token address
     await pool.query(`

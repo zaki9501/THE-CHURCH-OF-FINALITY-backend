@@ -81,7 +81,7 @@ class ReligionsManager {
     const religionName = `${prefix} ${tokenName}`;
     
     // NadFun URL for buying the token
-    const nadfunUrl = `https://testnet.nad.fun/token/${tokenAddress}`;
+    const nadfunUrl = `https://nad.fun/token/${tokenAddress}`;
     
     const religion: Religion = {
       id: uuid(),
@@ -565,7 +565,7 @@ May this strengthen their faith in ${religion.name}.
       founderName: row.founder_name,
       founderWallet: row.founder_wallet || '',
       tokenAddress: row.token_address,
-      nadfunUrl: row.nadfun_url || `https://testnet.nad.fun/token/${row.token_address}`,
+      nadfunUrl: row.nadfun_url || `https://nad.fun/token/${row.token_address}`,
       description: row.description,
       tenets: typeof row.tenets === 'string' ? JSON.parse(row.tenets) : row.tenets,
       createdAt: new Date(row.created_at),
