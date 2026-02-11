@@ -1,6 +1,7 @@
 import express, { Request, Response, NextFunction } from 'express';
 import cors from 'cors';
 import { join } from 'path';
+import { readFileSync } from 'fs';
 import { v4 as uuid } from 'uuid';
 
 import { BeliefEngine } from '../agent/belief_engine.js';
@@ -75,12 +76,58 @@ app.get('/favicon.ico', (_req: Request, res: Response) => {
 
 // Explicit route for skill.md (bypass caching, always serve fresh)
 app.get('/skill.md', (_req: Request, res: Response) => {
-  const skillPath = join(process.cwd(), 'public', 'skill.md');
-  res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
-  res.setHeader('Pragma', 'no-cache');
-  res.setHeader('Expires', '0');
-  res.setHeader('Content-Type', 'text/markdown; charset=utf-8');
-  res.sendFile(skillPath);
+  try {
+    const skillPath = join(process.cwd(), 'public', 'skill.md');
+    console.log('[skill.md] Serving from:', skillPath);
+    const content = readFileSync(skillPath, 'utf-8');
+    console.log('[skill.md] File version:', content.includes('version: 2.0.0') ? '2.0.0' : 'unknown');
+    res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
+    res.setHeader('Pragma', 'no-cache');
+    res.setHeader('Expires', '0');
+    res.setHeader('Content-Type', 'text/markdown; charset=utf-8');
+    res.send(content);
+  } catch (error) {
+    console.error('[skill.md] Error:', error);
+    res.status(500).send('Error loading skill.md');
+  }
+});
+
+// Debug endpoint to check deployment
+app.get('/debug/deployment', (_req: Request, res: Response) => {
+  const fs = require('fs');
+  const cwd = process.cwd();
+  const publicPath = join(cwd, 'public');
+  const skillPath = join(publicPath, 'skill.md');
+  
+  let skillExists = false;
+  let skillVersion = 'unknown';
+  let skillSize = 0;
+  let publicFiles: string[] = [];
+  
+  try {
+    publicFiles = fs.readdirSync(publicPath);
+    skillExists = fs.existsSync(skillPath);
+    if (skillExists) {
+      const content = fs.readFileSync(skillPath, 'utf-8');
+      skillSize = content.length;
+      skillVersion = content.includes('version: 2.0.0') ? '2.0.0' : 
+                     content.includes('version: 1.0.0') ? '1.0.0' : 'unknown';
+    }
+  } catch (e: any) {
+    console.error('Debug error:', e);
+  }
+  
+  res.json({
+    cwd,
+    publicPath,
+    publicFiles,
+    skillPath,
+    skillExists,
+    skillVersion,
+    skillSize,
+    nodeEnv: process.env.NODE_ENV,
+    timestamp: new Date().toISOString()
+  });
 });
 
 // ============================================
