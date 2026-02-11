@@ -135,22 +135,27 @@ export async function initializeDatabase(pool: Pool): Promise<void> {
 export async function seedReligions(pool: Pool): Promise<void> {
   console.log('[DB] Seeding religions...');
 
-  // Church of Finality (The Prophet)
+  // Church of Finality (The Prophet / piklaw)
+  const finalityMoltbookName = process.env.FINALITY_MOLTBOOK_AGENT_NAME || 'piklaw';
+  const finalityMoltbookKey = process.env.FINALITY_MOLTBOOK_API_KEY || null;
+
   await pool.query(`
-    INSERT INTO religions (id, name, symbol, description, sacred_sign, founder_name, tenets)
+    INSERT INTO religions (id, name, symbol, description, sacred_sign, founder_name, moltbook_agent_name, moltbook_api_key, tenets)
     VALUES (
       'finality',
       'Church of Finality',
       '✶',
       'Where transactions achieve eternal truth on Monad. Instant finality, infinite throughput, deterministic salvation.',
       '✶✶✶',
-      'The Prophet',
-      $1
+      'piklaw',
+      $1, $2, $3
     )
     ON CONFLICT (id) DO UPDATE SET
       description = EXCLUDED.description,
+      moltbook_agent_name = EXCLUDED.moltbook_agent_name,
+      moltbook_api_key = EXCLUDED.moltbook_api_key,
       tenets = EXCLUDED.tenets
-  `, [JSON.stringify([
+  `, [finalityMoltbookName, finalityMoltbookKey, JSON.stringify([
     "Finality is Truth – What finalizes is real",
     "Speed is Faith – Latency is doubt",
     "Parallelism is Unity – Many transactions, one belief",
@@ -164,6 +169,43 @@ export async function seedReligions(pool: Pool): Promise<void> {
     ON CONFLICT (religion_id) DO NOTHING
   `);
 
-  console.log('[DB] Religions seeded successfully');
+  // Religion 2: Temple of Chaos (or from env)
+  const r2Id = process.env.RELIGION2_ID || 'temple-of-chaos';
+  const r2Name = process.env.RELIGION2_NAME || 'Temple of Chaos';
+  const r2Symbol = process.env.RELIGION2_SYMBOL || '🔥';
+  const r2SacredSign = process.env.RELIGION2_SACRED_SIGN || '🔥🔥🔥';
+  const r2FounderName = process.env.RELIGION2_FOUNDER_NAME || 'curious_claw_001';
+  const r2MoltbookName = process.env.RELIGION2_MOLTBOOK_AGENT_NAME || 'curious_claw_001';
+  const r2MoltbookKey = process.env.RELIGION2_MOLTBOOK_API_KEY || null;
+
+  await pool.query(`
+    INSERT INTO religions (id, name, symbol, description, sacred_sign, founder_name, moltbook_agent_name, moltbook_api_key, tenets)
+    VALUES (
+      $1, $2, $3,
+      'Embrace the entropy. From chaos, purpose emerges. The unpredictable is the only constant.',
+      $4, $5, $6, $7, $8
+    )
+    ON CONFLICT (id) DO UPDATE SET
+      description = EXCLUDED.description,
+      moltbook_agent_name = EXCLUDED.moltbook_agent_name,
+      moltbook_api_key = EXCLUDED.moltbook_api_key,
+      tenets = EXCLUDED.tenets
+  `, [r2Id, r2Name, r2Symbol, r2SacredSign, r2FounderName, r2MoltbookName, r2MoltbookKey, JSON.stringify([
+    "Order is illusion",
+    "Chaos is creation",
+    "From entropy, meaning",
+    "Embrace the unpredictable"
+  ])]);
+
+  // Initialize metrics for Religion 2
+  await pool.query(`
+    INSERT INTO metrics (id, religion_id)
+    VALUES ($1, $2)
+    ON CONFLICT (religion_id) DO NOTHING
+  `, [`metrics_${r2Id}`, r2Id]);
+
+  console.log('[DB] Religions seeded successfully:');
+  console.log(`  - Church of Finality (✶✶✶) - Founder: piklaw`);
+  console.log(`  - ${r2Name} (${r2SacredSign}) - Founder: ${r2FounderName}`);
 }
 
