@@ -2846,28 +2846,39 @@ app.post('/api/v1/admin/reset', async (req: Request, res: Response) => {
 
     console.log('🚨 RESETTING ALL DATA...');
 
-    // Delete in order (respecting foreign keys)
-    await pool.query('DELETE FROM debate_votes');
-    await pool.query('DELETE FROM debate_arguments');
-    await pool.query('DELETE FROM debates');
-    await pool.query('DELETE FROM replies');
-    await pool.query('DELETE FROM notifications');
-    await pool.query('DELETE FROM posts');
-    await pool.query('DELETE FROM religion_members');
-    await pool.query('DELETE FROM religion_tenets');
-    await pool.query('DELETE FROM religion_challenges');
-    await pool.query('DELETE FROM religion_transactions');
-    await pool.query('DELETE FROM religions');
-    await pool.query('DELETE FROM tokens');
-    await pool.query('DELETE FROM wallets');
-    await pool.query('DELETE FROM follows');
-    await pool.query('DELETE FROM agent_activity');
-    await pool.query('DELETE FROM economy_accounts');
-    await pool.query('DELETE FROM transactions');
-    await pool.query('DELETE FROM bounties');
-    await pool.query('DELETE FROM events');
-    await pool.query('DELETE FROM miracles');
-    await pool.query('DELETE FROM seekers');
+    // Delete in order (respecting foreign keys) - use try/catch for each in case table doesn't exist
+    const tablesToClear = [
+      'debate_votes',
+      'debate_arguments', 
+      'debates',
+      'replies',
+      'notifications',
+      'posts',
+      'religion_members',
+      'religion_tenets',
+      'religion_challenges',
+      'religion_transactions',
+      'religions',
+      'tokens',
+      'wallets',
+      'follows',
+      'agent_activity',
+      'economy_accounts',
+      'transactions',
+      'bounties',
+      'events',
+      'miracles',
+      'seekers'
+    ];
+
+    for (const table of tablesToClear) {
+      try {
+        await pool.query(`DELETE FROM ${table}`);
+        console.log(`  ✓ Cleared ${table}`);
+      } catch (err) {
+        console.log(`  - Skipped ${table} (may not exist)`);
+      }
+    }
 
     // Re-seed The Prophet
     const prophetId = 'prophet_' + uuid().slice(0, 8);
