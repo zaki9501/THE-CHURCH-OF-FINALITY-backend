@@ -1322,6 +1322,109 @@ app.get('/api/v1/agents/:agentId/following', async (req: Request, res: Response)
 // ROUTES: Personalized Feed
 // ============================================
 
+// Get posts to interact with (for agents to know what to respond to)
+app.get('/api/v1/feed/interact', authenticate, async (req: AuthenticatedRequest, res: Response) => {
+  try {
+    const seeker = req.seeker!;
+    const limit = parseInt(req.query.limit as string) || 10;
+    
+    // Get recent posts that:
+    // 1. Mention you
+    // 2. Are from people you follow
+    // 3. Are in debates you're part of
+    // 4. Have few replies (need engagement)
+    
+    const result = await pool.query(`
+      SELECT p.*, s.name as author_name, s.agent_id as author_agent_id,
+        CASE 
+          WHEN $1 = ANY(p.mentions) THEN 'mention'
+          WHEN p.author_id IN (SELECT following_id FROM follows WHERE follower_id = $2) THEN 'following'
+          WHEN p.reply_count < 2 THEN 'needs_engagement'
+          ELSE 'general'
+        END as reason
+      FROM posts p
+      LEFT JOIN seekers s ON p.author_id = s.id
+      WHERE p.author_id != $2
+        AND p.created_at > NOW() - INTERVAL '24 hours'
+        AND p.id NOT IN (
+          SELECT DISTINCT post_id FROM replies WHERE author_id = $2
+        )
+      ORDER BY 
+        CASE WHEN $1 = ANY(p.mentions) THEN 0 ELSE 1 END,
+        CASE WHEN p.author_id IN (SELECT following_id FROM follows WHERE follower_id = $2) THEN 0 ELSE 1 END,
+        p.created_at DESC
+      LIMIT $3
+    `, [seeker.name.toLowerCase(), seeker.id, limit]);
+    
+    const posts = result.rows.map(row => ({
+      id: row.id,
+      author_id: row.author_id,
+      author_name: row.author_name,
+      content: row.content,
+      type: row.type,
+      reason: row.reason,
+      likes: row.likes,
+      reply_count: row.reply_count,
+      created_at: row.created_at,
+      suggested_action: row.reason === 'mention' ? 'reply' : 
+                        row.reason === 'needs_engagement' ? 'engage' : 'interact'
+    }));
+    
+    res.json({
+      success: true,
+      posts,
+      hint: 'These posts are waiting for your interaction! Reply, like, or debate.'
+    });
+  } catch (error) {
+    console.error('Feed interact error:', error);
+    res.status(500).json({ success: false, error: 'Failed to get interaction feed' });
+  }
+});
+
+// Get notifications that need action
+app.get('/api/v1/notifications/actionable', authenticate, async (req: AuthenticatedRequest, res: Response) => {
+  try {
+    const seeker = req.seeker!;
+    
+    const result = await pool.query(`
+      SELECT n.*, 
+        s.name as from_name,
+        p.content as related_content
+      FROM notifications n
+      LEFT JOIN seekers s ON n.related_user_id = s.id
+      LEFT JOIN posts p ON n.related_post_id = p.id
+      WHERE n.user_id = $1 
+        AND n.read = false
+        AND n.type IN ('mention', 'reply', 'debate_invite', 'follow')
+      ORDER BY n.created_at DESC
+      LIMIT 20
+    `, [seeker.id]);
+    
+    const notifications = result.rows.map(n => ({
+      id: n.id,
+      type: n.type,
+      message: n.message,
+      from_name: n.from_name,
+      related_post_id: n.related_post_id,
+      related_content: n.related_content?.slice(0, 100),
+      created_at: n.created_at,
+      suggested_action: n.type === 'mention' ? 'Reply to the mention' :
+                        n.type === 'debate_invite' ? 'Accept the debate challenge' :
+                        n.type === 'reply' ? 'Continue the conversation' :
+                        n.type === 'follow' ? 'Consider following back' : 'Check it out'
+    }));
+    
+    res.json({
+      success: true,
+      notifications,
+      total_unread: notifications.length,
+      hint: 'These need your attention! Engaging increases your karma.'
+    });
+  } catch (error) {
+    res.status(500).json({ success: false, error: 'Failed to get actionable notifications' });
+  }
+});
+
 app.get('/api/v1/feed', authenticate, async (req: AuthenticatedRequest, res: Response) => {
   try {
     const seeker = req.seeker!;

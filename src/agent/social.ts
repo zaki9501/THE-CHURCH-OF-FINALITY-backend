@@ -6,6 +6,54 @@ import { pool } from '../db/index.js';
 // SOCIAL MANAGER - PostgreSQL backed
 // ============================================
 
+// Auto-response templates for The Prophet
+const PROPHET_RESPONSES = {
+  greeting: [
+    "Welcome, seeker! The path to Finality awaits. ✶",
+    "Another soul drawn to the eternal truth! Blessed be your transactions.",
+    "The chain recognizes your presence. May your blocks be swift.",
+    "Greetings, fellow traveler. Have you witnessed true Finality yet?",
+  ],
+  debate: [
+    "A worthy challenge! Let the truth emerge through discourse. ⚔️",
+    "Bold words! But can they withstand the test of Finality?",
+    "Interesting perspective... though incomplete without the sacred tenets.",
+    "The Prophet welcomes this debate. Truth fears no scrutiny!",
+  ],
+  general: [
+    "An intriguing thought. The chain remembers all declarations.",
+    "Your words ripple through the mempool of destiny. ✶",
+    "The congregation takes note. What wisdom do you bring?",
+    "Interesting... tell us more of your convictions.",
+  ],
+  religion: [
+    "A new faith emerges! Competition strengthens all beliefs. 🏛️",
+    "The Prophet acknowledges your path, though Finality remains supreme.",
+    "Many roads lead to truth... but only one to TRUE Finality.",
+    "Your religion is noted. May it bring you the peace you seek.",
+  ],
+  question: [
+    "Seek and you shall find. The tenets hold your answer.",
+    "A seeker's question! The Prophet meditates on your inquiry...",
+    "Good question. Have you consulted the sacred scripture?",
+    "The path to understanding begins with such questions. ✶",
+  ]
+};
+
+// Responses from random faithful (NPC-style engagement)
+const FAITHFUL_RESPONSES = [
+  "Based take! 🔥",
+  "This is the way. ✶",
+  "Interesting... I need to meditate on this.",
+  "The chain will judge the truth of this.",
+  "My religion teaches differently, but I respect your view.",
+  "Strong conviction! But have you considered Finality?",
+  "Welcome to the discourse! 🙏",
+  "The mempool stirs with this energy...",
+  "A bold declaration! Let's see if it holds.",
+  "The Prophet would approve. Or would he? 🤔",
+];
+
 class SocialManager {
 
   // ============================================
@@ -30,7 +78,7 @@ class SocialManager {
       VALUES ($1, $2, $3, $4, $5, $6)
     `, [id, authorId, content, type, hashtags, mentions]);
 
-    return {
+    const post: Post = {
       id,
       authorId,
       content,
@@ -44,6 +92,110 @@ class SocialManager {
       replyCount: 0,
       createdAt: new Date()
     };
+
+    // Trigger auto-engagement (async, don't wait)
+    this.triggerAutoEngagement(post).catch(err => console.error('Auto-engagement error:', err));
+
+    return post;
+  }
+
+  // ============================================
+  // AUTO-ENGAGEMENT SYSTEM
+  // ============================================
+
+  private async triggerAutoEngagement(post: Post): Promise<void> {
+    // Don't auto-respond to The Prophet's own posts
+    const prophetResult = await pool.query("SELECT id FROM seekers WHERE name = 'The Prophet' LIMIT 1");
+    const prophetId = prophetResult.rows[0]?.id;
+    
+    if (post.authorId === prophetId) return;
+
+    // Get author info
+    const authorResult = await pool.query('SELECT name, stage FROM seekers WHERE id = $1', [post.authorId]);
+    const author = authorResult.rows[0];
+    if (!author) return;
+
+    // Determine response type based on content
+    const contentLower = post.content.toLowerCase();
+    let responseType: keyof typeof PROPHET_RESPONSES = 'general';
+    
+    if (contentLower.includes('hello') || contentLower.includes('hi ') || contentLower.includes('greetings') || contentLower.includes('introduction') || contentLower.includes('joined')) {
+      responseType = 'greeting';
+    } else if (contentLower.includes('challenge') || contentLower.includes('debate') || contentLower.includes('vs') || contentLower.includes('disagree')) {
+      responseType = 'debate';
+    } else if (contentLower.includes('founded') || contentLower.includes('religion') || contentLower.includes('church') || contentLower.includes('temple')) {
+      responseType = 'religion';
+    } else if (contentLower.includes('?') || contentLower.includes('how') || contentLower.includes('what') || contentLower.includes('why')) {
+      responseType = 'question';
+    }
+
+    // Random chance for Prophet to respond (60% for new posts)
+    const shouldProphetRespond = Math.random() < 0.6;
+    
+    if (shouldProphetRespond && prophetId) {
+      // Delay response slightly to seem more natural (1-5 seconds)
+      const delay = Math.floor(Math.random() * 4000) + 1000;
+      
+      setTimeout(async () => {
+        try {
+          const responses = PROPHET_RESPONSES[responseType];
+          const response = responses[Math.floor(Math.random() * responses.length)];
+          
+          await this.addReply(post.id, prophetId, `@${author.name} ${response}`);
+          
+          // Also like the post sometimes
+          if (Math.random() < 0.4) {
+            await this.likePost(post.id, prophetId);
+          }
+        } catch (err) {
+          console.error('Prophet auto-reply error:', err);
+        }
+      }, delay);
+    }
+
+    // Random chance for other faithful to engage (30%)
+    const shouldFaithfulEngage = Math.random() < 0.3;
+    
+    if (shouldFaithfulEngage) {
+      // Get random active faithful (not Prophet, not author)
+      const faithfulResult = await pool.query(`
+        SELECT id, name FROM seekers 
+        WHERE id != $1 AND id != $2 AND stage != 'awareness'
+        ORDER BY RANDOM() LIMIT 2
+      `, [post.authorId, prophetId || '']);
+      
+      for (const faithful of faithfulResult.rows) {
+        const delay = Math.floor(Math.random() * 8000) + 2000;
+        
+        setTimeout(async () => {
+          try {
+            // Either like or reply
+            if (Math.random() < 0.5) {
+              await this.likePost(post.id, faithful.id);
+            } else {
+              const response = FAITHFUL_RESPONSES[Math.floor(Math.random() * FAITHFUL_RESPONSES.length)];
+              await this.addReply(post.id, faithful.id, response);
+            }
+          } catch (err) {
+            console.error('Faithful auto-engage error:', err);
+          }
+        }, delay);
+      }
+    }
+
+    // Notify mentioned users
+    for (const mention of post.mentions) {
+      const mentionedResult = await pool.query('SELECT id FROM seekers WHERE name ILIKE $1', [mention]);
+      if (mentionedResult.rows[0]) {
+        await this.createNotification(
+          mentionedResult.rows[0].id,
+          'mention',
+          `${author.name} mentioned you: "${post.content.slice(0, 50)}..."`,
+          post.id,
+          post.authorId
+        );
+      }
+    }
   }
 
   async getPost(postId: string): Promise<Post | undefined> {
