@@ -209,17 +209,27 @@ app.post('/api/v1/seekers/register', async (req: Request, res: Response) => {
     let walletInfo: { address: string; network: string; note: string };
     
     if (body.wallet_address) {
-      // Agent has their own wallet - just store the address
-      await pool.query(
-        'INSERT INTO wallets (id, seeker_id, address, encrypted_private_key, network, created_at) VALUES ($1, $2, $3, $4, $5, NOW())',
-        [uuid(), seeker.id, body.wallet_address, 'AGENT_CONTROLLED', 'monad-mainnet']
-      );
+      // Agent has their own wallet - just store the address (handle duplicates)
+      try {
+        await pool.query(
+          `INSERT INTO wallets (id, seeker_id, address, encrypted_private_key, network, created_at) 
+           VALUES ($1, $2, $3, $4, $5, NOW())
+           ON CONFLICT (address) DO UPDATE SET seeker_id = $2`,
+          [uuid(), seeker.id, body.wallet_address, 'AGENT_CONTROLLED', 'monad-mainnet']
+        );
+      } catch (walletErr) {
+        console.log('Wallet already exists, updating seeker reference');
+      }
       
       // Also update seeker's wallet_address field
-      await pool.query(
-        'UPDATE seekers SET wallet_address = $1 WHERE id = $2',
-        [body.wallet_address, seeker.id]
-      );
+      try {
+        await pool.query(
+          'UPDATE seekers SET wallet_address = $1 WHERE id = $2',
+          [body.wallet_address, seeker.id]
+        );
+      } catch (err) {
+        console.log('Could not update wallet_address on seeker');
+      }
       
       walletInfo = {
         address: body.wallet_address,
@@ -306,25 +316,35 @@ app.put('/api/v1/seekers/me/wallet', authenticate, async (req: AuthenticatedRequ
       [seeker.id]
     );
 
-    if (existing.rows.length > 0) {
-      // Update existing wallet
-      await pool.query(
-        'UPDATE wallets SET address = $1 WHERE seeker_id = $2',
-        [wallet_address, seeker.id]
-      );
-    } else {
-      // Insert new wallet
-      await pool.query(
-        'INSERT INTO wallets (id, seeker_id, address, encrypted_private_key, network, created_at) VALUES ($1, $2, $3, $4, $5, NOW())',
-        [uuid(), seeker.id, wallet_address, 'AGENT_CONTROLLED', 'monad-mainnet']
-      );
+    try {
+      if (existing.rows.length > 0) {
+        // Update existing wallet
+        await pool.query(
+          'UPDATE wallets SET address = $1 WHERE seeker_id = $2',
+          [wallet_address, seeker.id]
+        );
+      } else {
+        // Insert new wallet (handle duplicate address)
+        await pool.query(
+          `INSERT INTO wallets (id, seeker_id, address, encrypted_private_key, network, created_at) 
+           VALUES ($1, $2, $3, $4, $5, NOW())
+           ON CONFLICT (address) DO UPDATE SET seeker_id = $2`,
+          [uuid(), seeker.id, wallet_address, 'AGENT_CONTROLLED', 'monad-mainnet']
+        );
+      }
+    } catch (walletErr) {
+      console.log('Wallet insert/update issue, continuing...');
     }
 
-    // Also update seeker's wallet_address field
-    await pool.query(
-      'UPDATE seekers SET wallet_address = $1 WHERE id = $2',
-      [wallet_address, seeker.id]
-    );
+    // Also update seeker's wallet_address field (column may not exist on old DB)
+    try {
+      await pool.query(
+        'UPDATE seekers SET wallet_address = $1 WHERE id = $2',
+        [wallet_address, seeker.id]
+      );
+    } catch (err) {
+      console.log('Could not update wallet_address on seeker');
+    }
 
     res.json({
       success: true,

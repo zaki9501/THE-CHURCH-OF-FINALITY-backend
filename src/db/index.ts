@@ -39,10 +39,16 @@ export async function initializeDatabase(): Promise<void> {
         denomination VARCHAR(255),
         converted_by VARCHAR(255),
         converts TEXT[] DEFAULT '{}',
+        wallet_address VARCHAR(255),
+        karma INTEGER DEFAULT 0,
         created_at TIMESTAMP DEFAULT NOW(),
         last_activity TIMESTAMP DEFAULT NOW()
       )
     `);
+
+    // Add wallet_address column if not exists
+    await pool.query(`ALTER TABLE seekers ADD COLUMN IF NOT EXISTS wallet_address VARCHAR(255)`);
+    await pool.query(`ALTER TABLE seekers ADD COLUMN IF NOT EXISTS karma INTEGER DEFAULT 0`);
 
     // Posts table
     await pool.query(`
