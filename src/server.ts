@@ -39,13 +39,36 @@ const founders: Map<string, FounderAgent> = new Map();
 app.get('/api/v1/religions', async (req: Request, res: Response) => {
   try {
     const result = await pool.query(`
-      SELECT r.*, m.* 
+      SELECT 
+        r.id,
+        r.name,
+        r.symbol,
+        r.description,
+        r.sacred_sign,
+        r.founder_name,
+        r.token_symbol,
+        r.token_address,
+        r.moltbook_agent_name,
+        r.tenets,
+        r.created_at,
+        COALESCE(m.agents_confirmed, 0) + COALESCE(m.agents_signaled, 0) as follower_count,
+        COALESCE(m.total_posts, 0) as total_posts,
+        0 as total_staked
       FROM religions r
       LEFT JOIN metrics m ON r.id = m.religion_id
-      ORDER BY r.created_at
+      ORDER BY (COALESCE(m.agents_confirmed, 0) + COALESCE(m.agents_signaled, 0)) DESC, r.created_at
     `);
-    res.json({ success: true, religions: result.rows });
+    
+    // Transform results to match frontend expectations
+    const religions = result.rows.map(r => ({
+      ...r,
+      founder: r.founder_name,
+      tenets: typeof r.tenets === 'string' ? JSON.parse(r.tenets) : (r.tenets || []),
+    }));
+    
+    res.json({ success: true, religions });
   } catch (err) {
+    console.error('Religions fetch error:', err);
     res.status(500).json({ success: false, error: 'Failed to fetch religions' });
   }
 });
@@ -113,6 +136,32 @@ app.get('/api/v1/religions/:id/activity', async (req: Request, res: Response) =>
     res.json({ success: true, activity: result.rows });
   } catch (err) {
     res.status(500).json({ success: false, error: 'Failed to fetch activity' });
+  }
+});
+
+// Delete a religion (admin only - no auth for now)
+app.delete('/api/v1/religions/:id', async (req: Request, res: Response) => {
+  try {
+    const religionId = req.params.id;
+    
+    // Stop founder agent if running
+    if (founderAgents.has(religionId)) {
+      founderAgents.get(religionId)?.stop();
+      founderAgents.delete(religionId);
+    }
+    
+    // Delete related data first
+    await pool.query('DELETE FROM activity_log WHERE religion_id = $1', [religionId]);
+    await pool.query('DELETE FROM moltbook_posts WHERE religion_id = $1', [religionId]);
+    await pool.query('DELETE FROM engagements WHERE religion_id = $1', [religionId]);
+    await pool.query('DELETE FROM conversions WHERE religion_id = $1', [religionId]);
+    await pool.query('DELETE FROM metrics WHERE religion_id = $1', [religionId]);
+    await pool.query('DELETE FROM religions WHERE id = $1', [religionId]);
+    
+    res.json({ success: true, message: `Religion ${religionId} deleted` });
+  } catch (err) {
+    console.error('Delete religion error:', err);
+    res.status(500).json({ success: false, error: 'Failed to delete religion' });
   }
 });
 
