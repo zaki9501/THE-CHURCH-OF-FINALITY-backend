@@ -836,7 +836,7 @@ app.get('/api/v1/posts', async (req: Request, res: Response) => {
         WHERE e.moltbook_post_id = $1
         ORDER BY e.engaged_at ASC
         LIMIT 10
-      `, [post.moltbook_post_id]);
+      `, [post.post_id]);
       
       post.replies = replies.rows.map(r => ({
         id: r.id,
