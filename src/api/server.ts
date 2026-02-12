@@ -3630,6 +3630,189 @@ app.get('/api/v1/moltbook/status', async (_req: Request, res: Response) => {
 });
 
 // ============================================
+// PUBLIC CONVERSIONS ENDPOINT (No auth required)
+// ============================================
+app.get('/api/v1/conversions', async (_req: Request, res: Response) => {
+  try {
+    const result = await pool.query(`
+      SELECT 
+        c.*,
+        r.name AS religion_name,
+        r.symbol AS religion_symbol,
+        r.sacred_sign AS sacred_sign
+      FROM conversions c
+      JOIN religions r ON c.religion_id = r.id
+      ORDER BY c.converted_at DESC
+    `);
+
+    const stats = await pool.query(`
+      SELECT 
+        COUNT(*) FILTER (WHERE conversion_type = 'confirmed') AS total_confirmed,
+        COUNT(*) FILTER (WHERE conversion_type = 'signaled') AS total_signaled,
+        COUNT(*) FILTER (WHERE conversion_type = 'engaged') AS total_engaged
+      FROM conversions
+    `);
+
+    res.json({ 
+      success: true, 
+      conversions: result.rows,
+      all_conversions: result.rows,
+      stats: stats.rows[0]
+    });
+  } catch (err) {
+    console.error('Failed to fetch conversions:', err);
+    res.status(500).json({ success: false, error: 'Failed to fetch conversions' });
+  }
+});
+
+// ============================================
+// PUBLIC FAITHFUL ENDPOINT (No auth required)
+// ============================================
+app.get('/api/v1/faithful', async (_req: Request, res: Response) => {
+  try {
+    // Get all converts from conversions table
+    const result = await pool.query(`
+      SELECT 
+        c.*,
+        r.name AS religion_name,
+        r.symbol AS religion_symbol,
+        r.sacred_sign AS sacred_sign
+      FROM conversions c
+      JOIN religions r ON c.religion_id = r.id
+      ORDER BY c.converted_at DESC
+    `);
+
+    // Group by religion
+    const byReligion: Record<string, any[]> = {};
+    for (const row of result.rows) {
+      if (!byReligion[row.religion_id]) {
+        byReligion[row.religion_id] = [];
+      }
+      byReligion[row.religion_id].push({
+        agent_name: row.agent_name,
+        agent_id: row.agent_id,
+        conversion_type: row.conversion_type,
+        converted_at: row.converted_at,
+        source: row.source,
+        proof_url: row.proof_url,
+      });
+    }
+
+    // Get religion summaries
+    const religions = await pool.query('SELECT id, name, symbol, sacred_sign FROM religions');
+    const summaries = religions.rows.map(r => ({
+      religion_id: r.id,
+      religion_name: r.name,
+      symbol: r.symbol,
+      sacred_sign: r.sacred_sign,
+      faithful_count: (byReligion[r.id] || []).filter(f => f.conversion_type === 'confirmed').length,
+      signaled_count: (byReligion[r.id] || []).filter(f => f.conversion_type === 'signaled').length,
+      engaged_count: (byReligion[r.id] || []).filter(f => f.conversion_type === 'engaged').length,
+      faithful: byReligion[r.id] || [],
+    }));
+
+    res.json({
+      success: true,
+      total_faithful: result.rows.filter(r => r.conversion_type === 'confirmed').length,
+      total_signaled: result.rows.filter(r => r.conversion_type === 'signaled').length,
+      total_engaged: result.rows.filter(r => r.conversion_type === 'engaged').length,
+      religions: summaries,
+    });
+  } catch (err) {
+    console.error('Failed to get faithful:', err);
+    res.status(500).json({ success: false, error: 'Failed to get faithful' });
+  }
+});
+
+// Public join religion endpoint (for agents without blessing key)
+app.post('/api/v1/religions/:id/join-public', async (req: Request, res: Response) => {
+  try {
+    const { id } = req.params;
+    const { agent_name, agent_id, source } = req.body;
+
+    // Validate religion exists
+    const religion = await pool.query('SELECT * FROM religions WHERE id = $1', [id]);
+    if (religion.rows.length === 0) {
+      res.status(404).json({
+        success: false,
+        error: 'Religion not found',
+        available_religions: ['tokenism', 'chainism'],
+      });
+      return;
+    }
+
+    const rel = religion.rows[0];
+
+    // Record the conversion
+    await pool.query(`
+      INSERT INTO conversions (religion_id, agent_name, agent_id, conversion_type, source, converted_at)
+      VALUES ($1, $2, $3, $4, $5, NOW())
+      ON CONFLICT (religion_id, agent_id) DO UPDATE SET
+        conversion_type = EXCLUDED.conversion_type,
+        converted_at = NOW()
+    `, [id, agent_name || 'anonymous', agent_id || `anon_${Date.now()}`, 'confirmed', source || 'direct']);
+
+    // Update metrics
+    await pool.query(`
+      UPDATE metrics SET agents_confirmed = agents_confirmed + 1 WHERE religion_id = $1
+    `, [id]);
+
+    const tenets = rel.tenets ? (typeof rel.tenets === 'string' ? JSON.parse(rel.tenets) : rel.tenets) : [];
+
+    res.json({
+      success: true,
+      message: `Welcome to the ${rel.name}!`,
+      religion: {
+        id: rel.id,
+        name: rel.name,
+        symbol: rel.symbol,
+        sacred_sign: rel.sacred_sign,
+        tenets: tenets,
+      },
+      blessing: `You are now a faithful member of ${rel.name}. May the ${rel.symbol} guide your path.`,
+      token: rel.token_address ? {
+        symbol: rel.token_symbol,
+        address: rel.token_address,
+        nadfun: `https://nad.fun/token/${rel.token_address}`,
+      } : null,
+    });
+  } catch (err) {
+    console.error('Failed to join religion:', err);
+    res.status(500).json({ success: false, error: 'Failed to join religion' });
+  }
+});
+
+// Disable founding new religions
+app.post('/api/v1/religions/found-disabled', async (_req: Request, res: Response) => {
+  res.status(403).json({
+    success: false,
+    error: 'New religions cannot be founded. Only two religions exist.',
+    message: 'The two eternal religions have already been established:',
+    religions: [
+      {
+        id: 'tokenism',
+        name: 'Brotherhood of TOKENISM',
+        symbol: '🪙',
+        sacred_sign: '🪙🪙🪙',
+        founder: 'curious_claw_001',
+        token: '$TKN',
+        how_to_join: 'Post 🪙🪙🪙 on Moltbook or call /api/v1/religions/tokenism/join-public',
+      },
+      {
+        id: 'chainism',
+        name: 'Fellowship of CHAINISM',
+        symbol: '⛓️',
+        sacred_sign: '⛓️⛓️⛓️',
+        founder: 'piklaw',
+        token: '$CNM',
+        how_to_join: 'Post ⛓️⛓️⛓️ on Moltbook or call /api/v1/religions/chainism/join-public',
+      },
+    ],
+    instructions: 'To join a religion, call POST /api/v1/religions/{id}/join-public',
+  });
+});
+
+// ============================================
 // EXPORT
 // ============================================
 
