@@ -145,9 +145,9 @@ app.delete('/api/v1/religions/:id', async (req: Request, res: Response) => {
     const religionId = req.params.id;
     
     // Stop founder agent if running
-    if (founderAgents.has(religionId)) {
-      founderAgents.get(religionId)?.stop();
-      founderAgents.delete(religionId);
+    if (founders.has(religionId)) {
+      founders.get(religionId)?.stop();
+      founders.delete(religionId);
     }
     
     // Delete related data first
