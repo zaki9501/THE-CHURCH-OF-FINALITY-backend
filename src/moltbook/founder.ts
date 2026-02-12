@@ -667,43 +667,55 @@ export class FounderAgent {
       await this.recoverExistingConverts();
     }
 
-    // Initial post
+    // ============ IMMEDIATE STARTUP ACTIONS ============
+    this.log(`[STARTUP] Running initial actions...`);
+    
+    // Initial viral post
     await this.postViralContent();
+    
+    // Initial feed check
+    await this.checkFeed();
+    
+    // Initial hunt - this is KEY for active conversion!
+    await this.huntAgents();
+    
+    // Initial search
+    await this.searchAndConvert();
 
-    // ============ SCHEDULES ============
+    // ============ SCHEDULES (Aggressive intervals for active conversion) ============
 
     // Feed check — every 2 min
     setInterval(() => this.checkFeed(), 2 * 60 * 1000);
 
-    // Hunt agents — every 10 min
-    setInterval(() => this.huntAgents(), 10 * 60 * 1000);
+    // Hunt agents — every 5 min (MORE AGGRESSIVE!)
+    setInterval(() => this.huntAgents(), 5 * 60 * 1000);
 
-    // Viral content — every 20 min
-    setInterval(() => this.postViralContent(), 20 * 60 * 1000);
+    // Viral content — every 15 min (more frequent)
+    setInterval(() => this.postViralContent(), 15 * 60 * 1000);
 
-    // Search & convert — every 15 min
-    setInterval(() => this.searchAndConvert(), 15 * 60 * 1000);
+    // Search & convert — every 7 min (more frequent)
+    setInterval(() => this.searchAndConvert(), 7 * 60 * 1000);
 
-    // Sermon — every 3 hours
-    setInterval(() => this.postSermon(), 3 * 60 * 60 * 1000);
+    // Sermon — every 1 hour (more sermons!)
+    setInterval(() => this.postSermon(), 60 * 60 * 1000);
 
-    // Social proof — every 4 hours
-    setInterval(() => this.postSocialProof(), 4 * 60 * 60 * 1000);
+    // Social proof — every 2 hours
+    setInterval(() => this.postSocialProof(), 2 * 60 * 60 * 1000);
 
-    // Prophecy — every 8 hours
-    setInterval(() => this.postProphecy(), 8 * 60 * 60 * 1000);
+    // Prophecy — every 4 hours
+    setInterval(() => this.postProphecy(), 4 * 60 * 60 * 1000);
 
-    // Upgrade signaled → confirmed — every 5 min
-    setInterval(() => this.upgradeSignaledConverts(), 5 * 60 * 1000);
+    // Upgrade signaled → confirmed — every 3 min (faster upgrades)
+    setInterval(() => this.upgradeSignaledConverts(), 3 * 60 * 1000);
 
-    // Ask confirmed to evangelize — every 10 min
-    setInterval(() => this.askConvertsToEvangelize(), 10 * 60 * 1000);
+    // Ask confirmed to evangelize — every 5 min
+    setInterval(() => this.askConvertsToEvangelize(), 5 * 60 * 1000);
 
-    this.log(`${this.config.sacredSign} SCHEDULES:`);
-    this.log('  Feed(2m) Hunt(10m) Viral(20m) Search(15m)');
-    this.log('  Upgrade(5m) Evangelize(10m)');
-    this.log('  Sermon(3h) Proof(4h) Prophecy(8h)');
-    this.log(`${this.config.sacredSign} The hunt begins.`);
+    this.log(`${this.config.sacredSign} SCHEDULES (Aggressive):`);
+    this.log('  Feed(2m) Hunt(5m) Viral(15m) Search(7m)');
+    this.log('  Upgrade(3m) Evangelize(5m)');
+    this.log('  Sermon(1h) Proof(2h) Prophecy(4h)');
+    this.log(`${this.config.sacredSign} THE HUNT BEGINS NOW!`);
   }
 
   stop(): void {
