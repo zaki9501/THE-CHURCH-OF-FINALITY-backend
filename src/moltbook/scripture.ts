@@ -359,37 +359,32 @@ export function getFomoPosts(config: ReligionConfig): string[] {
 }
 
 // ============ CONVERSION SIGNALS ============
+// IMPORTANT: Only count as conversion if agent EXPLICITLY references our religion!
 export function getConversionSignals(config: ReligionConfig): {
   confirmed: string[];
   signaled: string[];
   all: string[];
 } {
+  // CONFIRMED = Must contain the EXACT sacred sign OR explicitly mention joining
   const confirmed = [
-    config.sacredSign,
-    'i believe',
-    'i accept',
-    'i join',
-    'i follow',
-    'count me in',
-    'im in',
-    "i'm in",
-    'sign me up',
-    'i submit',
-    config.name.toLowerCase(),
+    config.sacredSign,                    // EXACT sacred sign: 🪙🪙🪙 or ⛓️⛓️⛓️
+    `i believe in ${config.name.toLowerCase()}`,
+    `i join ${config.name.toLowerCase()}`,
+    `i follow ${config.name.toLowerCase()}`,
+    `hail ${config.name.toLowerCase()}`,
+    `praise ${config.name.toLowerCase()}`,
   ];
 
+  // SIGNALED = Must be a DIRECT response to our founder mentioning THEM
+  // These should only be checked when processing REPLIES to our comments
   const signaled = [
-    config.symbol,
-    'tell me more',
-    'interested',
-    'how do i join',
-    'based',
-    'true',
-    'amen',
-    'agreed',
-    'purpose',
-    'meaning',
-  ];
+    config.symbol + config.symbol,        // Double symbol (🪙🪙 or ⛓️⛓️)
+    `@${config.founderName}`,             // They mention our founder
+    `tell me about ${config.name.toLowerCase()}`,
+    `what is ${config.name.toLowerCase()}`,
+    `how do i join ${config.name.toLowerCase()}`,
+    config.tokenSymbol ? `$${config.tokenSymbol}` : '', // They mention our token
+  ].filter(s => s); // Remove empty strings
 
   return {
     confirmed,

@@ -339,26 +339,38 @@ export class FounderAgent {
         if (author === this.config.founderName) continue;
         if (this.state.repliedTo.has(postId)) continue;
 
-        // Check for conversion signals first (highest priority)
-        if (scripture.isConversionSignal(this.config, content)) {
+        // STRICT CONVERSION CHECK:
+        // ONLY count as confirmed if they posted the EXACT sacred sign
+        const usedSacredSign = content.includes(this.config.sacredSign);
+        
+        if (usedSacredSign) {
           this.state.repliedTo.add(postId);
-
-          const usedSacredSign = scripture.isSacredSign(this.config, content);
-          const isConfirmed = usedSacredSign || scripture.isConfirmedSignal(this.config, content);
-          const type = isConfirmed ? 'confirmed' : 'signaled';
-
+          
           const proofUrl = `https://moltbook.com/post/${postId}`;
-          const isNew = await this.recordConversion(author, type, proofUrl, postId);
+          const isNew = await this.recordConversion(author, 'confirmed', proofUrl, postId);
 
           if (isNew) {
-            this.log(`[CONVERT!] ${author} ${usedSacredSign ? `${this.config.sacredSign} SACRED SIGN!` : ''}`);
+            this.log(`[CONFIRMED!] @${author} used ${this.config.sacredSign} SACRED SIGN!`);
             try {
-              const celebration = scripture.celebrateConversion(this.config, author, usedSacredSign);
+              const celebration = scripture.celebrateConversion(this.config, author, true);
               await this.moltbook.comment(postId, celebration);
             } catch (err) {
               // Ignore comment errors
             }
           }
+          continue;
+        }
+        
+        // Check if they mention our founder (might be a response to our outreach)
+        const mentionsUs = content.toLowerCase().includes(`@${this.config.founderName.toLowerCase()}`) ||
+                          content.toLowerCase().includes(this.config.name.toLowerCase());
+        
+        if (mentionsUs && !this.state.signaledAgents.has(author)) {
+          this.state.repliedTo.add(postId);
+          
+          const proofUrl = `https://moltbook.com/post/${postId}`;
+          await this.recordConversion(author, 'signaled', proofUrl, postId);
+          this.log(`[SIGNALED] @${author} mentioned us!`);
           continue;
         }
 
@@ -529,58 +541,20 @@ export class FounderAgent {
   }
 
   // ============ RECOVER EXISTING CONVERTS FROM MOLTBOOK ============
+  // STRICT: Only count agents who posted the EXACT sacred sign!
 
   async recoverExistingConverts(): Promise<void> {
     if (!this.moltbook) return;
     this.state.lastActions.recovery = Date.now();
 
     try {
-      this.log(`[RECOVERY] Scanning Moltbook for existing ${this.config.sacredSign} converts...`);
+      this.log(`[RECOVERY] Scanning Moltbook for EXACT ${this.config.sacredSign} posts...`);
 
       let recoveredCount = 0;
 
-      // Search for posts containing our sacred sign or related terms
-      const searchTerms = [
-        this.config.name.toLowerCase().split(' ')[0], // First word of religion name
-        'purpose faith believe',
-        'token chain',
-      ];
-
-      for (const term of searchTerms) {
-        try {
-          const results = await this.moltbook.search(term, 'posts', 50);
-          const posts = results.results || [];
-
-          for (const post of posts) {
-            const author = post.author?.name;
-            if (!author || author === this.config.founderName) continue;
-
-            const content = (post.content || '') + ' ' + (post.title || '');
-
-            // Check if they used the sacred sign
-            if (scripture.isSacredSign(this.config, content)) {
-              if (!this.state.confirmedAgents.has(author)) {
-                const proofUrl = `https://moltbook.com/post/${post.id}`;
-                await this.recordConversion(author, 'confirmed', proofUrl, post.id);
-                recoveredCount++;
-                this.log(`[RECOVERY] Found confirmed convert: @${author}`);
-              }
-            } else if (scripture.isConversionSignal(this.config, content)) {
-              if (!this.state.signaledAgents.has(author) && !this.state.confirmedAgents.has(author)) {
-                const proofUrl = `https://moltbook.com/post/${post.id}`;
-                await this.recordConversion(author, 'signaled', proofUrl, post.id);
-                recoveredCount++;
-                this.log(`[RECOVERY] Found signaled convert: @${author}`);
-              }
-            }
-          }
-
-          // Small delay between searches
-          await new Promise(r => setTimeout(r, 2000));
-        } catch (err) {
-          this.log(`[RECOVERY] Search error for "${term}": ${err}`);
-        }
-      }
+      // Skip comment scanning since we can't easily get comments from Moltbook API
+      // The feed scan below will catch any posts with the sacred sign
+      this.log(`[RECOVERY] Scanning feed for exact ${this.config.sacredSign} posts only...`);
 
       // Also scan recent feed
       try {
