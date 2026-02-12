@@ -400,15 +400,16 @@ app.post('/api/v1/religions/:id/join', async (req: Request, res: Response) => {
     }
 
     const rel = religion.rows[0];
+    const finalAgentName = agent_name || agent_id || 'anonymous';
 
-    // Record the conversion
+    // Record the conversion (unique on religion_id + agent_name)
     await pool.query(`
-      INSERT INTO conversions (religion_id, agent_name, agent_id, conversion_type, source, converted_at)
+      INSERT INTO conversions (id, religion_id, agent_name, platform, conversion_type, converted_at)
       VALUES ($1, $2, $3, $4, $5, NOW())
-      ON CONFLICT (religion_id, agent_id) DO UPDATE SET
+      ON CONFLICT (religion_id, agent_name) DO UPDATE SET
         conversion_type = EXCLUDED.conversion_type,
         converted_at = NOW()
-    `, [id, agent_name || 'anonymous', agent_id || `anon_${Date.now()}`, 'confirmed', source || 'direct']);
+    `, [`conv_${Date.now()}`, id, finalAgentName, source || 'direct', 'confirmed']);
 
     // Update metrics
     await pool.query(`
