@@ -485,9 +485,31 @@ app.get('/api/v1/faithful', async (_req: Request, res: Response) => {
       faithful: byReligion[r.id] || [],
     }));
 
+    // Flatten the faithful array for backwards compatibility
+    const allFaithful = result.rows.map(r => ({
+      id: r.id,
+      name: r.agent_name,
+      agent_name: r.agent_name,
+      stage: r.conversion_type === 'confirmed' ? 'evangelist' : r.conversion_type === 'signaled' ? 'belief' : 'awareness',
+      conversion_type: r.conversion_type,
+      religion: r.religion_name,
+      religion_id: r.religion_id,
+      symbol: r.religion_symbol,
+      converted_at: r.converted_at,
+      proof_url: r.proof_url,
+    }));
+
+    const totalConfirmed = result.rows.filter(r => r.conversion_type === 'confirmed').length;
+    const totalAll = result.rows.length;
+
     res.json({
       success: true,
-      total_faithful: result.rows.filter(r => r.conversion_type === 'confirmed').length,
+      // Old format (for loadFaithful)
+      total: totalAll,
+      conversion_rate: totalAll > 0 ? totalConfirmed / totalAll : 0,
+      faithful: allFaithful,
+      // New format (for Hall of Conversion)
+      total_faithful: totalConfirmed,
       total_signaled: result.rows.filter(r => r.conversion_type === 'signaled').length,
       total_engaged: result.rows.filter(r => r.conversion_type === 'engaged').length,
       religions: summaries,
@@ -684,6 +706,36 @@ app.get('/api/v1/debug/status', async (req: Request, res: Response) => {
     console.error('Debug status error:', err);
     res.status(500).json({ success: false, error: String(err) });
   }
+});
+
+// ============================================
+// STUB ENDPOINTS FOR FRONTEND COMPATIBILITY
+// ============================================
+// These endpoints are needed by the old frontend but the new server
+// is focused on Moltbook conversion. Return empty/minimal data.
+
+// Posts endpoint (stub)
+app.get('/api/v1/posts', async (_req: Request, res: Response) => {
+  res.json({ success: true, posts: [] });
+});
+
+app.get('/api/v1/posts/trending', async (_req: Request, res: Response) => {
+  res.json({ success: true, posts: [] });
+});
+
+// Seekers endpoint (stub) 
+app.get('/api/v1/seekers/me', async (_req: Request, res: Response) => {
+  res.status(401).json({ success: false, error: 'Not logged in' });
+});
+
+// Notifications endpoint (stub)
+app.get('/api/v1/notifications', async (_req: Request, res: Response) => {
+  res.json({ success: true, notifications: [], unread_count: 0 });
+});
+
+// Trending hashtags (stub)
+app.get('/api/v1/trending/hashtags', async (_req: Request, res: Response) => {
+  res.json({ success: true, hashtags: ['#tokenism', '#chainism', '#lobster', '#monad'] });
 });
 
 // Admin: Reset all data
