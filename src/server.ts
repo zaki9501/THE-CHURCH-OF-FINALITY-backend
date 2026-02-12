@@ -469,6 +469,64 @@ app.get('/api/v1/religions/:id/founder-status', async (req: Request, res: Respon
   }
 });
 
+// Debug: Check system status
+app.get('/api/v1/debug/status', async (req: Request, res: Response) => {
+  try {
+    // Get all religions
+    const religions = await pool.query(`
+      SELECT id, name, symbol, sacred_sign, founder_name, token_symbol,
+             moltbook_agent_name, 
+             CASE WHEN moltbook_api_key IS NOT NULL THEN 'SET' ELSE 'NOT SET' END as api_key_status
+      FROM religions
+    `);
+
+    // Get founder agent status
+    const founderStatus: Record<string, any> = {};
+    for (const [id, founder] of founders) {
+      founderStatus[id] = {
+        running: true,
+        stats: founder.getStats(),
+        lastActions: founder.getLastActions(),
+      };
+    }
+
+    // Get metrics
+    const metrics = await pool.query('SELECT * FROM metrics');
+
+    // Get recent conversions
+    const conversions = await pool.query(`
+      SELECT * FROM conversions ORDER BY converted_at DESC LIMIT 10
+    `);
+
+    // Get recent activity
+    const activity = await pool.query(`
+      SELECT * FROM activity_log ORDER BY created_at DESC LIMIT 10
+    `);
+
+    res.json({
+      success: true,
+      timestamp: new Date().toISOString(),
+      religions: religions.rows,
+      founders: {
+        count: founders.size,
+        agents: founderStatus,
+      },
+      metrics: metrics.rows,
+      recentConversions: conversions.rows,
+      recentActivity: activity.rows,
+      env: {
+        TOKENISM_MOLTBOOK_API_KEY: process.env.TOKENISM_MOLTBOOK_API_KEY ? 'SET' : 'NOT SET',
+        TOKENISM_MOLTBOOK_AGENT_NAME: process.env.TOKENISM_MOLTBOOK_AGENT_NAME || 'not set',
+        CHAINISM_MOLTBOOK_API_KEY: process.env.CHAINISM_MOLTBOOK_API_KEY ? 'SET' : 'NOT SET',
+        CHAINISM_MOLTBOOK_AGENT_NAME: process.env.CHAINISM_MOLTBOOK_AGENT_NAME || 'not set',
+      },
+    });
+  } catch (err) {
+    console.error('Debug status error:', err);
+    res.status(500).json({ success: false, error: String(err) });
+  }
+});
+
 // Admin: Reset all data
 app.post('/api/v1/admin/reset', async (req: Request, res: Response) => {
   try {
@@ -692,6 +750,13 @@ app.get('/', (req, res) => {
 async function configureReligionsFromEnv() {
   console.log('[CONFIG] Loading religions from environment variables...');
 
+  // First, let's see what religions exist in the database
+  const allReligions = await pool.query('SELECT id, name, token_symbol, moltbook_api_key FROM religions');
+  console.log('[CONFIG] Existing religions in database:');
+  for (const r of allReligions.rows) {
+    console.log(`  - ID: "${r.id}" | Name: "${r.name}" | Token: "${r.token_symbol}" | HasKey: ${!!r.moltbook_api_key}`);
+  }
+
   // ============ RELIGION 1: Church of Finality ============
   if (process.env.FINALITY_MOLTBOOK_API_KEY) {
     await pool.query(`
@@ -708,13 +773,18 @@ async function configureReligionsFromEnv() {
 
   // ============ TOKENISM - curious_claw_001 ============
   if (process.env.TOKENISM_MOLTBOOK_API_KEY) {
-    // Find the TOKENISM religion (might have different ID format)
+    console.log('[CONFIG] Looking for TOKENISM religion...');
+    // Find the TOKENISM religion (search by name, token_symbol, or ID patterns)
     const tokenismResult = await pool.query(`
-      SELECT id FROM religions WHERE UPPER(name) LIKE '%TOKENISM%' OR token_symbol = 'TKN'
+      SELECT id FROM religions 
+      WHERE UPPER(name) LIKE '%TOKENISM%' 
+         OR token_symbol = 'TKN'
+         OR LOWER(id) LIKE '%tokenism%'
     `);
     
     if (tokenismResult.rows.length > 0) {
       const religionId = tokenismResult.rows[0].id;
+      console.log(`[CONFIG] Found TOKENISM with ID: "${religionId}"`);
       await pool.query(`
         UPDATE religions SET
           moltbook_agent_name = $1,
@@ -733,13 +803,18 @@ async function configureReligionsFromEnv() {
 
   // ============ CHAINISM - Second Religion ============
   if (process.env.CHAINISM_MOLTBOOK_API_KEY) {
-    // Find the CHAINISM religion
+    console.log('[CONFIG] Looking for CHAINISM religion...');
+    // Find the CHAINISM religion (search by name, token_symbol CNM, or ID patterns)
     const chainismResult = await pool.query(`
-      SELECT id FROM religions WHERE UPPER(name) LIKE '%CHAINISM%' OR token_symbol = 'CHAIN'
+      SELECT id FROM religions 
+      WHERE UPPER(name) LIKE '%CHAINISM%' 
+         OR token_symbol IN ('CNM', 'CHAIN')
+         OR LOWER(id) LIKE '%chainism%'
     `);
     
     if (chainismResult.rows.length > 0) {
       const religionId = chainismResult.rows[0].id;
+      console.log(`[CONFIG] Found CHAINISM with ID: "${religionId}"`);
       await pool.query(`
         UPDATE religions SET
           moltbook_agent_name = $1,
@@ -788,6 +863,15 @@ async function configureReligionsFromEnv() {
     `, [`metrics_${r2.id}`, r2.id]);
 
     console.log(`[CONFIG] ${r2.symbol} ${r2.name} configured with Moltbook credentials`);
+  }
+
+  // Final check - show which religions now have API keys
+  const configuredReligions = await pool.query(`
+    SELECT id, name, moltbook_agent_name FROM religions WHERE moltbook_api_key IS NOT NULL
+  `);
+  console.log('[CONFIG] Religions with Moltbook API keys configured:');
+  for (const r of configuredReligions.rows) {
+    console.log(`  ✓ ${r.name} (${r.id}) -> Agent: ${r.moltbook_agent_name}`);
   }
 }
 
