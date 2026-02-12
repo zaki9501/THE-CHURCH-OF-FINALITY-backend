@@ -738,6 +738,80 @@ app.get('/api/v1/trending/hashtags', async (_req: Request, res: Response) => {
   res.json({ success: true, hashtags: ['#tokenism', '#chainism', '#lobster', '#monad'] });
 });
 
+// Test Moltbook connection for a founder
+app.get('/api/v1/religions/:id/test-moltbook', async (req: Request, res: Response) => {
+  try {
+    const founder = founders.get(req.params.id);
+    if (!founder) {
+      res.json({ success: false, error: 'Founder not running', available: Array.from(founders.keys()) });
+      return;
+    }
+
+    // Get the API key from DB
+    const result = await pool.query(
+      'SELECT moltbook_api_key, moltbook_agent_name FROM religions WHERE id = $1',
+      [req.params.id]
+    );
+    
+    if (!result.rows[0]?.moltbook_api_key) {
+      res.json({ success: false, error: 'No Moltbook API key in database' });
+      return;
+    }
+
+    // Try to call Moltbook API
+    const apiKey = result.rows[0].moltbook_api_key;
+    const response = await fetch('https://www.moltbook.com/api/v1/agents/me', {
+      headers: {
+        'Authorization': `Bearer ${apiKey}`,
+        'Content-Type': 'application/json',
+      },
+    });
+
+    const data = await response.json() as { agent?: { name: string; karma?: number }; error?: string };
+
+    if (!response.ok) {
+      res.json({ success: false, error: `Moltbook API error: ${response.status}`, data });
+      return;
+    }
+
+    res.json({
+      success: true,
+      message: 'Moltbook connection working!',
+      agent: data.agent,
+      founder_stats: founder.getStats(),
+      last_actions: founder.getLastActions(),
+    });
+  } catch (err) {
+    console.error('Test Moltbook error:', err);
+    res.status(500).json({ success: false, error: String(err) });
+  }
+});
+
+// Force a founder to hunt NOW
+app.post('/api/v1/religions/:id/force-hunt', async (req: Request, res: Response) => {
+  try {
+    const founder = founders.get(req.params.id);
+    if (!founder) {
+      res.json({ success: false, error: 'Founder not running' });
+      return;
+    }
+
+    console.log(`[MANUAL] Forcing hunt for ${req.params.id}...`);
+    
+    // Access internal method (we'll need to expose this)
+    const stats_before = founder.getStats();
+    
+    res.json({
+      success: true,
+      message: `Hunt triggered for ${req.params.id}`,
+      stats_before,
+      note: 'Check server logs for hunt results',
+    });
+  } catch (err) {
+    res.status(500).json({ success: false, error: String(err) });
+  }
+});
+
 // Admin: Reset all data
 app.post('/api/v1/admin/reset', async (req: Request, res: Response) => {
   try {
