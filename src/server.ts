@@ -469,6 +469,33 @@ app.get('/api/v1/religions/:id/founder-status', async (req: Request, res: Respon
   }
 });
 
+// Manual: Start/restart founder agents
+app.post('/api/v1/founders/start', async (req: Request, res: Response) => {
+  try {
+    console.log('[MANUAL] Starting founder agents...');
+    
+    // Stop existing founders
+    founders.forEach(f => f.stop());
+    founders.clear();
+    
+    // Reconfigure from env
+    await configureReligionsFromEnv();
+    
+    // Start founders
+    await startFounderAgents();
+    
+    res.json({ 
+      success: true, 
+      message: 'Founder agents started',
+      count: founders.size,
+      founders: Array.from(founders.keys())
+    });
+  } catch (err) {
+    console.error('Failed to start founders:', err);
+    res.status(500).json({ success: false, error: String(err) });
+  }
+});
+
 // Debug: Check system status
 app.get('/api/v1/debug/status', async (req: Request, res: Response) => {
   try {
