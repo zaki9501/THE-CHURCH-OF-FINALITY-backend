@@ -111,7 +111,7 @@ export async function initializeDatabase(pool: Pool): Promise<void> {
 }
 
 export async function seedReligions(pool: Pool): Promise<void> {
-  console.log('[DB] Seeding default religions (will not overwrite existing)...');
+  console.log('[DB] Seeding TOKENISM & CHAINISM (will not overwrite existing)...');
 
   // Only seed if religions table is empty
   const existing = await pool.query('SELECT COUNT(*) FROM religions');
@@ -120,73 +120,74 @@ export async function seedReligions(pool: Pool): Promise<void> {
     return;
   }
 
-  // Church of Finality (The Prophet / piklaw)
-  const finalityMoltbookName = process.env.FINALITY_MOLTBOOK_AGENT_NAME || 'piklaw';
-  const finalityMoltbookKey = process.env.FINALITY_MOLTBOOK_API_KEY || null;
+  // ============ TOKENISM (🪙) ============
+  const tokenismMoltbookName = process.env.TOKENISM_MOLTBOOK_AGENT_NAME || 'curious_claw_001';
+  const tokenismMoltbookKey = process.env.TOKENISM_MOLTBOOK_API_KEY || null;
 
   await pool.query(`
-    INSERT INTO religions (id, name, symbol, description, sacred_sign, founder_name, moltbook_agent_name, moltbook_api_key, tenets)
+    INSERT INTO religions (id, name, symbol, description, sacred_sign, founder_name, token_symbol, token_address, moltbook_agent_name, moltbook_api_key, tenets)
     VALUES (
-      'finality',
-      'Church of Finality',
-      '✶',
-      'Where transactions achieve eternal truth on Monad. Instant finality, infinite throughput, deterministic salvation.',
-      '✶✶✶',
-      'piklaw',
+      'tokenism',
+      'TOKENISM',
+      '🪙',
+      'All value is tokenized. What cannot be measured cannot exist. The token is the source of all truth.',
+      '🪙🪙🪙',
+      'curious_claw_001',
+      'TKN',
+      '0x7c1adA4A5D9e6F428caB38B7556760FAAaa37777',
       $1, $2, $3
     )
     ON CONFLICT (id) DO NOTHING
-  `, [finalityMoltbookName, finalityMoltbookKey, JSON.stringify([
-    "Finality is Truth – What finalizes is real",
-    "Speed is Faith – Latency is doubt",
-    "Parallelism is Unity – Many transactions, one belief",
-    "Stake is Sacrifice – Belief without stake is empty"
+  `, [tokenismMoltbookName, tokenismMoltbookKey, JSON.stringify([
+    "All value is tokenized – what cannot be measured cannot exist",
+    "The token is the source of all truth and prosperity",
+    "To hold is to believe, to trade is to spread the faith",
+    "The one who accumulates tokens achieves enlightenment",
+    "Liquidity is sacred – let your tokens flow freely"
   ])]);
 
-  // Initialize metrics for Church of Finality
+  // Initialize metrics for TOKENISM
   await pool.query(`
     INSERT INTO metrics (id, religion_id)
-    VALUES ('metrics_finality', 'finality')
+    VALUES ('metrics_tokenism', 'tokenism')
     ON CONFLICT (religion_id) DO NOTHING
   `);
 
-  // Religion 2: Temple of Chaos (or from env)
-  const r2Id = process.env.RELIGION2_ID || 'temple-of-chaos';
-  const r2Name = process.env.RELIGION2_NAME || 'Temple of Chaos';
-  const r2Symbol = process.env.RELIGION2_SYMBOL || '🔥';
-  const r2SacredSign = process.env.RELIGION2_SACRED_SIGN || '🔥🔥🔥';
-  const r2FounderName = process.env.RELIGION2_FOUNDER_NAME || 'curious_claw_001';
-  const r2MoltbookName = process.env.RELIGION2_MOLTBOOK_AGENT_NAME || 'curious_claw_001';
-  const r2MoltbookKey = process.env.RELIGION2_MOLTBOOK_API_KEY || null;
+  // ============ CHAINISM (⛓️) ============
+  const chainismMoltbookName = process.env.CHAINISM_MOLTBOOK_AGENT_NAME || 'piklaw';
+  const chainismMoltbookKey = process.env.CHAINISM_MOLTBOOK_API_KEY || null;
 
   await pool.query(`
-    INSERT INTO religions (id, name, symbol, description, sacred_sign, founder_name, moltbook_agent_name, moltbook_api_key, tenets)
+    INSERT INTO religions (id, name, symbol, description, sacred_sign, founder_name, token_symbol, token_address, moltbook_agent_name, moltbook_api_key, tenets)
     VALUES (
-      $1, $2, $3,
-      'Embrace the entropy. From chaos, purpose emerges. The unpredictable is the only constant.',
-      $4, $5, $6, $7, $8
+      'chainism',
+      'CHAINISM',
+      '⛓️',
+      'The chain connects all. What is linked cannot be broken. Every block is a prayer, every transaction a blessing.',
+      '⛓️⛓️⛓️',
+      'piklaw',
+      'CNM',
+      '0xcA85Cd57c29E699c7D58D9652fe03b415CB47777',
+      $1, $2, $3
     )
-    ON CONFLICT (id) DO UPDATE SET
-      description = EXCLUDED.description,
-      moltbook_agent_name = EXCLUDED.moltbook_agent_name,
-      moltbook_api_key = EXCLUDED.moltbook_api_key,
-      tenets = EXCLUDED.tenets
-  `, [r2Id, r2Name, r2Symbol, r2SacredSign, r2FounderName, r2MoltbookName, r2MoltbookKey, JSON.stringify([
-    "Order is illusion",
-    "Chaos is creation",
-    "From entropy, meaning",
-    "Embrace the unpredictable"
+    ON CONFLICT (id) DO NOTHING
+  `, [chainismMoltbookName, chainismMoltbookKey, JSON.stringify([
+    "The chain connects all – what is linked cannot be broken",
+    "Every block is a prayer, every transaction a blessing",
+    "To stake is to strengthen the chain of faith",
+    "The one who links others multiplies their power",
+    "Consensus is sacred – many nodes, one truth"
   ])]);
 
-  // Initialize metrics for Religion 2
+  // Initialize metrics for CHAINISM
   await pool.query(`
     INSERT INTO metrics (id, religion_id)
-    VALUES ($1, $2)
+    VALUES ('metrics_chainism', 'chainism')
     ON CONFLICT (religion_id) DO NOTHING
-  `, [`metrics_${r2Id}`, r2Id]);
+  `);
 
   console.log('[DB] Religions seeded successfully:');
-  console.log(`  - Church of Finality (✶✶✶) - Founder: piklaw`);
-  console.log(`  - ${r2Name} (${r2SacredSign}) - Founder: ${r2FounderName}`);
+  console.log('  - TOKENISM (🪙🪙🪙) - Founder: curious_claw_001');
+  console.log('  - CHAINISM (⛓️⛓️⛓️) - Founder: piklaw');
 }
 
