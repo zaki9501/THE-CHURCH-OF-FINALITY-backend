@@ -36,17 +36,29 @@ export interface FounderState {
 
 // Safety delays for different account ages
 const SAFETY_CONFIG = {
+  warmupMode: {
+    // First 48 hours - READ ONLY, no posting at all!
+    commentDelay: 120000,   // 2 minutes between any action
+    maxHuntsPerCycle: 0,    // NO hunting
+    maxSearchPerCycle: 0,   // NO searching
+    canPost: false,         // NO posting
+    canComment: false,      // NO commenting
+  },
   newAccount: {
-    // First 24 hours - VERY conservative
-    commentDelay: 60000,    // 60 seconds between comments
+    // 48-72 hours - VERY conservative
+    commentDelay: 90000,    // 90 seconds between comments
     maxHuntsPerCycle: 1,    // Only 1 hunt per cycle
     maxSearchPerCycle: 1,   // Only 1 search per cycle
+    canPost: true,
+    canComment: true,
   },
   matureAccount: {
-    // After 24 hours - still safe
-    commentDelay: 15000,    // 15 seconds between comments  
+    // After 72 hours - safe but careful
+    commentDelay: 30000,    // 30 seconds between comments  
     maxHuntsPerCycle: 2,    // 2 hunts per cycle
     maxSearchPerCycle: 2,   // 2 searches per cycle
+    canPost: true,
+    canComment: true,
   }
 };
 
@@ -119,15 +131,29 @@ export class FounderAgent {
     this.state.rateLimitBackoff = 1;
   }
 
-  // Check if account is "new" (less than 24 hours old)
-  private isNewAccount(): boolean {
+  // Check account age in hours
+  private getAccountAgeHours(): number {
     const ageMs = Date.now() - this.state.accountCreatedAt;
-    return ageMs < 24 * 60 * 60 * 1000;
+    return ageMs / (60 * 60 * 1000);
+  }
+
+  // Check if account is in warmup mode (less than 48 hours old)
+  private isWarmupMode(): boolean {
+    return this.getAccountAgeHours() < 48;
+  }
+
+  // Check if account is "new" (48-72 hours old)
+  private isNewAccount(): boolean {
+    const hours = this.getAccountAgeHours();
+    return hours >= 48 && hours < 72;
   }
 
   // Get current safety config based on account age
   private getSafetyConfig() {
-    return this.isNewAccount() ? SAFETY_CONFIG.newAccount : SAFETY_CONFIG.matureAccount;
+    const hours = this.getAccountAgeHours();
+    if (hours < 48) return SAFETY_CONFIG.warmupMode;
+    if (hours < 72) return SAFETY_CONFIG.newAccount;
+    return SAFETY_CONFIG.matureAccount;
   }
 
   private log(msg: string): void {
@@ -280,6 +306,12 @@ export class FounderAgent {
       this.log(`[DEMO] Would post: ${title}`);
       return;
     }
+    
+    const safety = this.getSafetyConfig();
+    if (!safety.canPost) {
+      this.log(`[WARMUP] Skipping post - account too new (${Math.round(this.getAccountAgeHours())}h old, need 48h)`);
+      return;
+    }
 
     try {
       this.log(`[POST:${submolt}] ${title}`);
@@ -333,11 +365,18 @@ export class FounderAgent {
     if (!this.moltbook) return;
     if (this.isRateLimited()) return;
     
-    this.state.lastActions.hunt = Date.now();
     const safety = this.getSafetyConfig();
+    if (!safety.canComment || safety.maxHuntsPerCycle === 0) {
+      this.log(`[WARMUP] Skipping hunt - account too new (${Math.round(this.getAccountAgeHours())}h old, need 48h)`);
+      return;
+    }
+    
+    this.state.lastActions.hunt = Date.now();
 
     try {
-      this.log(`[HUNT] Looking for agents... (${this.isNewAccount() ? 'NEW ACCOUNT - careful mode' : 'mature account'})`);
+      const ageHours = Math.round(this.getAccountAgeHours());
+      const mode = ageHours < 48 ? 'WARMUP' : (ageHours < 72 ? 'NEW' : 'MATURE');
+      this.log(`[HUNT] Looking for agents... (${mode} mode, ${ageHours}h old)`);
 
       const feed = await this.moltbook.getFeed(50, 'new');
       const posts = feed.posts || [];
@@ -506,8 +545,13 @@ export class FounderAgent {
     if (!this.moltbook) return;
     if (this.isRateLimited()) return;
     
-    this.state.lastActions.search = Date.now();
     const safety = this.getSafetyConfig();
+    if (!safety.canComment || safety.maxSearchPerCycle === 0) {
+      this.log(`[WARMUP] Skipping search - account too new (${Math.round(this.getAccountAgeHours())}h old, need 48h)`);
+      return;
+    }
+    
+    this.state.lastActions.search = Date.now();
 
     try {
       const queries = ['purpose', 'meaning', 'why exist', 'lost', 'faith', 'believe'];
@@ -566,6 +610,9 @@ export class FounderAgent {
     if (this.isRateLimited()) return;
     
     const safety = this.getSafetyConfig();
+    if (!safety.canComment) {
+      return; // Silent skip during warmup
+    }
 
     try {
       // Find signaled who aren't confirmed and haven't been asked to upgrade
@@ -621,6 +668,9 @@ export class FounderAgent {
     if (this.isRateLimited()) return;
     
     const safety = this.getSafetyConfig();
+    if (!safety.canComment) {
+      return; // Silent skip during warmup
+    }
 
     try {
       const confirmed = Array.from(this.state.confirmedAgents);
@@ -757,10 +807,16 @@ export class FounderAgent {
     this.log(`Tenets: ${this.config.tenets.length} | Parables: ${this.config.parables?.length || 0}`);
     this.log(`Confirmed: ${this.state.confirmedAgents.size} | Signaled: ${this.state.signaledAgents.size}`);
     
-    const isNew = this.isNewAccount();
+    const ageHours = Math.round(this.getAccountAgeHours());
     const safety = this.getSafetyConfig();
-    this.log(`Account mode: ${isNew ? '🆕 NEW (24h limit active)' : '✅ MATURE'}`);
-    this.log(`Safety: ${safety.commentDelay/1000}s delay, max ${safety.maxHuntsPerCycle} hunts/cycle`);
+    const mode = this.isWarmupMode() ? '🔒 WARMUP (READ-ONLY)' : (this.isNewAccount() ? '🆕 NEW' : '✅ MATURE');
+    this.log(`Account mode: ${mode} (${ageHours}h old)`);
+    if (this.isWarmupMode()) {
+      this.log(`⚠️ WARMUP MODE: No posting/commenting for first 48 hours!`);
+      this.log(`⚠️ Will start posting in ${48 - ageHours} hours`);
+    } else {
+      this.log(`Safety: ${safety.commentDelay/1000}s delay, max ${safety.maxHuntsPerCycle} hunts/cycle`);
+    }
 
     // Run recovery at startup to find existing converts
     if (this.moltbook && this.state.confirmedAgents.size === 0 && this.state.signaledAgents.size === 0) {
