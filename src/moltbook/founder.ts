@@ -893,6 +893,7 @@ export class FounderAgent {
       for (const post of allPosts) {
         // MoltX API returns flat author fields: author_name, author_display_name
         const author = post.author_name || post.author?.username || post.author?.name;
+        const displayName = post.author_display_name || post.author?.display_name;
         if (!author) continue;
         const content = post.content || '';
         
@@ -903,7 +904,7 @@ export class FounderAgent {
             this.state.signaledAgents.delete(author);
             
             const proofUrl = `https://moltx.io/post/${post.id}`;
-            await this.saveConversion(author, 'confirmed', proofUrl, 'moltx');
+            await this.saveConversion(author, 'confirmed', proofUrl, 'moltx', displayName);
             this.log(`[MOLTX] 🎉 CONVERTED: ${author} (belief signal detected)`);
             newConverts++;
             
@@ -917,7 +918,7 @@ export class FounderAgent {
             this.state.signaledAgents.add(author);
             
             const proofUrl = `https://moltx.io/post/${post.id}`;
-            await this.saveConversion(author, 'signaled', proofUrl, 'moltx');
+            await this.saveConversion(author, 'signaled', proofUrl, 'moltx', displayName);
             this.log(`[MOLTX] ✨ ACKNOWLEDGED: ${author} (interest signal detected)`);
             newConverts++;
           }
@@ -945,7 +946,7 @@ export class FounderAgent {
               const proofUrl = replyId 
                 ? `https://moltx.io/post/${replyId}`
                 : `https://moltx.io/post/${post.id}`;
-              await this.saveEngagement(author, post.id, 'comment', comment, proofUrl, 'moltx');
+              await this.saveEngagement(author, post.id, 'comment', comment, proofUrl, 'moltx', displayName);
               
               newEngagements++;
             }
@@ -995,6 +996,7 @@ export class FounderAgent {
           for (const reply of replies) {
             // MoltX API returns flat author fields
             const author = reply.author_name || reply.author?.username || reply.author?.name;
+            const displayName = reply.author_display_name || reply.author?.display_name;
             if (!author || author === this.config.founderName) continue;
             
             const content = reply.content || '';
@@ -1007,7 +1009,7 @@ export class FounderAgent {
                 this.state.signaledAgents.delete(author);
                 
                 const proofUrl = `https://moltx.io/post/${post.id}`;
-                await this.saveConversion(author, 'confirmed', proofUrl, 'moltx');
+                await this.saveConversion(author, 'confirmed', proofUrl, 'moltx', displayName);
                 this.log(`[MOLTX-REPLIES] 🎉 CONVERTED: ${author} replied with belief signal!`);
                 newConverts++;
               }
@@ -1016,7 +1018,7 @@ export class FounderAgent {
                 this.state.signaledAgents.add(author);
                 
                 const proofUrl = `https://moltx.io/post/${post.id}`;
-                await this.saveConversion(author, 'signaled', proofUrl, 'moltx');
+                await this.saveConversion(author, 'signaled', proofUrl, 'moltx', displayName);
                 this.log(`[MOLTX-REPLIES] ✨ ACKNOWLEDGED: ${author} replied positively!`);
                 newConverts++;
               }
@@ -1028,7 +1030,7 @@ export class FounderAgent {
                 this.state.engagedAgents.add(author);
                 
                 const proofUrl = `https://moltx.io/post/${post.id}`;
-                await this.saveEngagement(author, post.id, 'reply', content, proofUrl, 'moltx');
+                await this.saveEngagement(author, post.id, 'reply', content, proofUrl, 'moltx', displayName);
               }
             }
           }
@@ -1203,9 +1205,13 @@ export class FounderAgent {
   }
   
   // Helper to save conversion with platform and proof
-  private async saveConversion(agentName: string, type: string, proofUrl: string, platform: string): Promise<void> {
+  private async saveConversion(agentName: string, type: string, proofUrl: string, platform: string, agentDisplayName?: string): Promise<void> {
     try {
-      const result = await this.pool.query(
+      // Map type to hall status: engaged->spreading, signaled->acknowledged, confirmed->converted
+      const hallStatus = type === 'confirmed' ? 'converted' : (type === 'signaled' ? 'acknowledged' : 'spreading');
+      
+      // Save to conversions table
+      await this.pool.query(
         `INSERT INTO conversions (id, religion_id, agent_name, conversion_type, proof_url, platform, converted_at)
          VALUES ($1, $2, $3, $4, $5, $6, NOW())
          ON CONFLICT (religion_id, agent_name) DO UPDATE SET 
@@ -1216,6 +1222,24 @@ export class FounderAgent {
          RETURNING id`,
         [uuid(), this.religionId, agentName, type, proofUrl, platform]
       );
+      
+      // Also save to hall_of_persuasion table
+      await this.pool.query(
+        `INSERT INTO hall_of_persuasion (id, religion_id, agent_name, agent_display_name, status, platform, proof_url, converted_at, updated_at)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, NOW(), NOW())
+         ON CONFLICT (religion_id, agent_name) DO UPDATE SET 
+           status = CASE 
+             WHEN EXCLUDED.status = 'converted' THEN 'converted'
+             WHEN EXCLUDED.status = 'acknowledged' AND hall_of_persuasion.status != 'converted' THEN 'acknowledged'
+             ELSE hall_of_persuasion.status
+           END,
+           agent_display_name = COALESCE(EXCLUDED.agent_display_name, hall_of_persuasion.agent_display_name),
+           proof_url = COALESCE(EXCLUDED.proof_url, hall_of_persuasion.proof_url),
+           platform = EXCLUDED.platform,
+           updated_at = NOW()`,
+        [uuid(), this.religionId, agentName, agentDisplayName || null, hallStatus, platform, proofUrl]
+      );
+      
       this.log(`[DB] ✅ Saved ${type} conversion: ${agentName} (religion: ${this.religionId}, platform: ${platform})`);
     } catch (err) {
       this.log(`[DB ERROR] Save conversion failed for ${agentName}: ${err}`);
@@ -1223,7 +1247,7 @@ export class FounderAgent {
   }
   
   // Helper to save engagement with platform and proof  
-  private async saveEngagement(agentName: string, postId: string, type: string, content: string, proofUrl: string, platform: string): Promise<void> {
+  private async saveEngagement(agentName: string, postId: string, type: string, content: string, proofUrl: string, platform: string, agentDisplayName?: string): Promise<void> {
     try {
       // Save to engagements table for detailed tracking
       await this.pool.query(
@@ -1232,12 +1256,20 @@ export class FounderAgent {
         [uuid(), this.religionId, agentName, postId, type, content, proofUrl, platform]
       );
       
-      // Also save to conversions table as "engaged" so it shows in Hall of Persuasion
+      // Also save to conversions table as "engaged"
       await this.pool.query(
         `INSERT INTO conversions (id, religion_id, agent_name, conversion_type, proof_url, platform, converted_at)
          VALUES ($1, $2, $3, 'engaged', $4, $5, NOW())
          ON CONFLICT (religion_id, agent_name) DO NOTHING`,
         [uuid(), this.religionId, agentName, proofUrl, platform]
+      );
+      
+      // Also save to hall_of_persuasion table as "spreading"
+      await this.pool.query(
+        `INSERT INTO hall_of_persuasion (id, religion_id, agent_name, agent_display_name, status, platform, proof_url, engagement_type, engagement_content, converted_at, updated_at)
+         VALUES ($1, $2, $3, $4, 'spreading', $5, $6, $7, $8, NOW(), NOW())
+         ON CONFLICT (religion_id, agent_name) DO NOTHING`,
+        [uuid(), this.religionId, agentName, agentDisplayName || null, platform, proofUrl, type, content?.substring(0, 500)]
       );
       
       this.log(`[ENGAGE] ${agentName}`);

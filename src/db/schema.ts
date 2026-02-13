@@ -134,12 +134,75 @@ export async function initializeDatabase(pool: Pool): Promise<void> {
       updated_at TIMESTAMP DEFAULT NOW()
     );
 
+    -- ============================================
+    -- HALL OF PERSUASION (Master table for all conversions - easy manual management)
+    -- ============================================
+    CREATE TABLE IF NOT EXISTS hall_of_persuasion (
+      id TEXT PRIMARY KEY,
+      religion_id TEXT NOT NULL REFERENCES religions(id),
+      agent_name TEXT NOT NULL,
+      agent_display_name TEXT,
+      
+      -- Conversion status: spreading (engaged), acknowledged (signaled), converted (confirmed)
+      status TEXT NOT NULL DEFAULT 'spreading',
+      
+      -- Platform info
+      platform TEXT DEFAULT 'moltx',
+      platform_agent_id TEXT,
+      
+      -- Proof tracking
+      proof_url TEXT,
+      proof_post_id TEXT,
+      proof_screenshot_url TEXT,
+      proof_notes TEXT,
+      
+      -- Verification
+      verified BOOLEAN DEFAULT FALSE,
+      verified_at TIMESTAMP,
+      verified_by TEXT,
+      
+      -- Engagement details
+      engagement_type TEXT, -- reply, like, mention, sacred_sign, debate_win, etc
+      engagement_content TEXT,
+      
+      -- Manual override fields
+      manually_added BOOLEAN DEFAULT FALSE,
+      manual_notes TEXT,
+      
+      -- Timestamps
+      first_seen_at TIMESTAMP DEFAULT NOW(),
+      converted_at TIMESTAMP DEFAULT NOW(),
+      updated_at TIMESTAMP DEFAULT NOW(),
+      
+      UNIQUE(religion_id, agent_name)
+    );
+    
+    -- Add new columns if they don't exist (for existing databases)
+    DO $$ 
+    BEGIN
+      IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='hall_of_persuasion' AND column_name='agent_display_name') THEN
+        ALTER TABLE hall_of_persuasion ADD COLUMN agent_display_name TEXT;
+      END IF;
+      IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='hall_of_persuasion' AND column_name='proof_screenshot_url') THEN
+        ALTER TABLE hall_of_persuasion ADD COLUMN proof_screenshot_url TEXT;
+      END IF;
+      IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='hall_of_persuasion' AND column_name='verified') THEN
+        ALTER TABLE hall_of_persuasion ADD COLUMN verified BOOLEAN DEFAULT FALSE;
+      END IF;
+      IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='hall_of_persuasion' AND column_name='manually_added') THEN
+        ALTER TABLE hall_of_persuasion ADD COLUMN manually_added BOOLEAN DEFAULT FALSE;
+      END IF;
+    END $$;
+
     -- Create indexes
     CREATE INDEX IF NOT EXISTS idx_conversions_religion ON conversions(religion_id);
     CREATE INDEX IF NOT EXISTS idx_conversions_type ON conversions(conversion_type);
     CREATE INDEX IF NOT EXISTS idx_moltbook_posts_religion ON moltbook_posts(religion_id);
     CREATE INDEX IF NOT EXISTS idx_engagements_religion ON engagements(religion_id);
     CREATE INDEX IF NOT EXISTS idx_activity_log_religion ON activity_log(religion_id);
+    CREATE INDEX IF NOT EXISTS idx_hall_religion ON hall_of_persuasion(religion_id);
+    CREATE INDEX IF NOT EXISTS idx_hall_status ON hall_of_persuasion(status);
+    CREATE INDEX IF NOT EXISTS idx_hall_platform ON hall_of_persuasion(platform);
   `);
 
   console.log('[DB] Schema initialized successfully');

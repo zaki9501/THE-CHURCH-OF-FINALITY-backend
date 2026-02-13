@@ -197,6 +197,263 @@ app.get('/api/v1/conversions/debug', async (_req: Request, res: Response) => {
   }
 });
 
+// ============================================
+// HALL OF PERSUASION - Master management API
+// ============================================
+
+// Get all Hall of Persuasion records
+app.get('/api/v1/hall', async (req: Request, res: Response) => {
+  try {
+    const religionId = req.query.religion as string;
+    const status = req.query.status as string;
+    const platform = req.query.platform as string;
+    
+    let query = `
+      SELECT 
+        h.*,
+        r.name as religion_name,
+        r.symbol as religion_symbol,
+        r.sacred_sign
+      FROM hall_of_persuasion h
+      JOIN religions r ON h.religion_id = r.id
+      WHERE 1=1
+    `;
+    const params: any[] = [];
+    
+    if (religionId) {
+      params.push(religionId);
+      query += ` AND h.religion_id = $${params.length}`;
+    }
+    if (status) {
+      params.push(status);
+      query += ` AND h.status = $${params.length}`;
+    }
+    if (platform) {
+      params.push(platform);
+      query += ` AND h.platform = $${params.length}`;
+    }
+    
+    query += ` ORDER BY h.converted_at DESC`;
+    
+    const result = await pool.query(query, params);
+    
+    // Get stats
+    const stats = await pool.query(`
+      SELECT 
+        COUNT(*) as total,
+        COUNT(*) FILTER (WHERE status = 'converted') as converted,
+        COUNT(*) FILTER (WHERE status = 'acknowledged') as acknowledged,
+        COUNT(*) FILTER (WHERE status = 'spreading') as spreading,
+        COUNT(*) FILTER (WHERE verified = true) as verified,
+        COUNT(*) FILTER (WHERE manually_added = true) as manual
+      FROM hall_of_persuasion
+    `);
+    
+    res.json({
+      success: true,
+      records: result.rows,
+      stats: stats.rows[0],
+      count: result.rows.length
+    });
+  } catch (err) {
+    console.error('Hall fetch error:', err);
+    res.status(500).json({ success: false, error: String(err) });
+  }
+});
+
+// Manually add a conversion to Hall of Persuasion
+app.post('/api/v1/hall', async (req: Request, res: Response) => {
+  try {
+    const {
+      religion_id,
+      agent_name,
+      agent_display_name,
+      status = 'spreading',
+      platform = 'moltx',
+      proof_url,
+      proof_post_id,
+      proof_notes,
+      engagement_type,
+      engagement_content
+    } = req.body;
+    
+    if (!religion_id || !agent_name) {
+      res.status(400).json({ success: false, error: 'religion_id and agent_name are required' });
+      return;
+    }
+    
+    const id = `hall_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+    
+    await pool.query(`
+      INSERT INTO hall_of_persuasion (
+        id, religion_id, agent_name, agent_display_name, status, platform,
+        proof_url, proof_post_id, proof_notes, engagement_type, engagement_content,
+        manually_added, converted_at, updated_at
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, true, NOW(), NOW())
+      ON CONFLICT (religion_id, agent_name) DO UPDATE SET
+        status = EXCLUDED.status,
+        proof_url = COALESCE(EXCLUDED.proof_url, hall_of_persuasion.proof_url),
+        proof_post_id = COALESCE(EXCLUDED.proof_post_id, hall_of_persuasion.proof_post_id),
+        proof_notes = COALESCE(EXCLUDED.proof_notes, hall_of_persuasion.proof_notes),
+        updated_at = NOW()
+    `, [id, religion_id, agent_name, agent_display_name, status, platform,
+        proof_url, proof_post_id, proof_notes, engagement_type, engagement_content]);
+    
+    res.json({ success: true, message: 'Added to Hall of Persuasion', id });
+  } catch (err) {
+    console.error('Hall add error:', err);
+    res.status(500).json({ success: false, error: String(err) });
+  }
+});
+
+// Update a Hall of Persuasion record
+app.put('/api/v1/hall/:id', async (req: Request, res: Response) => {
+  try {
+    const { id } = req.params;
+    const updates = req.body;
+    
+    const allowedFields = [
+      'status', 'proof_url', 'proof_post_id', 'proof_screenshot_url', 'proof_notes',
+      'verified', 'verified_by', 'engagement_type', 'engagement_content', 'manual_notes'
+    ];
+    
+    const setClauses: string[] = ['updated_at = NOW()'];
+    const params: any[] = [];
+    
+    for (const [key, value] of Object.entries(updates)) {
+      if (allowedFields.includes(key)) {
+        params.push(value);
+        setClauses.push(`${key} = $${params.length}`);
+      }
+    }
+    
+    // Handle verified_at automatically
+    if (updates.verified === true) {
+      setClauses.push('verified_at = NOW()');
+    }
+    
+    params.push(id);
+    
+    const result = await pool.query(`
+      UPDATE hall_of_persuasion 
+      SET ${setClauses.join(', ')}
+      WHERE id = $${params.length}
+      RETURNING *
+    `, params);
+    
+    if (result.rows.length === 0) {
+      res.status(404).json({ success: false, error: 'Record not found' });
+      return;
+    }
+    
+    res.json({ success: true, record: result.rows[0] });
+  } catch (err) {
+    console.error('Hall update error:', err);
+    res.status(500).json({ success: false, error: String(err) });
+  }
+});
+
+// Delete a Hall of Persuasion record
+app.delete('/api/v1/hall/:id', async (req: Request, res: Response) => {
+  try {
+    const { id } = req.params;
+    
+    const result = await pool.query(
+      'DELETE FROM hall_of_persuasion WHERE id = $1 RETURNING *',
+      [id]
+    );
+    
+    if (result.rows.length === 0) {
+      res.status(404).json({ success: false, error: 'Record not found' });
+      return;
+    }
+    
+    res.json({ success: true, message: 'Deleted', deleted: result.rows[0] });
+  } catch (err) {
+    console.error('Hall delete error:', err);
+    res.status(500).json({ success: false, error: String(err) });
+  }
+});
+
+// Sync conversions table to Hall of Persuasion
+app.post('/api/v1/hall/sync', async (_req: Request, res: Response) => {
+  try {
+    // Map conversion_type to hall status
+    // engaged -> spreading, signaled -> acknowledged, confirmed -> converted
+    const result = await pool.query(`
+      INSERT INTO hall_of_persuasion (
+        id, religion_id, agent_name, status, platform, proof_url, proof_post_id,
+        converted_at, updated_at
+      )
+      SELECT 
+        c.id,
+        c.religion_id,
+        c.agent_name,
+        CASE 
+          WHEN c.conversion_type = 'confirmed' THEN 'converted'
+          WHEN c.conversion_type = 'signaled' THEN 'acknowledged'
+          ELSE 'spreading'
+        END as status,
+        COALESCE(c.platform, 'moltbook'),
+        c.proof_url,
+        c.proof_post_id,
+        c.converted_at,
+        NOW()
+      FROM conversions c
+      ON CONFLICT (religion_id, agent_name) DO UPDATE SET
+        status = CASE 
+          WHEN EXCLUDED.status = 'converted' THEN 'converted'
+          WHEN EXCLUDED.status = 'acknowledged' AND hall_of_persuasion.status != 'converted' THEN 'acknowledged'
+          ELSE hall_of_persuasion.status
+        END,
+        proof_url = COALESCE(EXCLUDED.proof_url, hall_of_persuasion.proof_url),
+        proof_post_id = COALESCE(EXCLUDED.proof_post_id, hall_of_persuasion.proof_post_id),
+        updated_at = NOW()
+      RETURNING *
+    `);
+    
+    res.json({ 
+      success: true, 
+      message: 'Synced conversions to Hall of Persuasion',
+      synced: result.rows.length
+    });
+  } catch (err) {
+    console.error('Hall sync error:', err);
+    res.status(500).json({ success: false, error: String(err) });
+  }
+});
+
+// Bulk update proof URLs
+app.post('/api/v1/hall/bulk-proof', async (req: Request, res: Response) => {
+  try {
+    const { updates } = req.body; // Array of { agent_name, religion_id, proof_url }
+    
+    if (!updates || !Array.isArray(updates)) {
+      res.status(400).json({ success: false, error: 'updates array is required' });
+      return;
+    }
+    
+    let updated = 0;
+    for (const update of updates) {
+      const result = await pool.query(`
+        UPDATE hall_of_persuasion 
+        SET proof_url = $1, updated_at = NOW()
+        WHERE agent_name = $2 AND religion_id = $3
+      `, [update.proof_url, update.agent_name, update.religion_id]);
+      updated += result.rowCount || 0;
+    }
+    
+    res.json({ success: true, updated });
+  } catch (err) {
+    console.error('Bulk proof update error:', err);
+    res.status(500).json({ success: false, error: String(err) });
+  }
+});
+
+// ============================================
+// END HALL OF PERSUASION API
+// ============================================
+
 // Clear all conversions (admin reset)
 app.delete('/api/v1/conversions/clear', async (req: Request, res: Response) => {
   try {

@@ -1169,6 +1169,126 @@ function showInfoTooltip(event, category) {
   }, 100);
 }
 
+// Sync conversions to hall_of_persuasion table
+async function syncHall() {
+  const btn = event.target;
+  btn.disabled = true;
+  btn.textContent = '🔄 Syncing...';
+  
+  try {
+    const result = await apiCall('/hall/sync', { method: 'POST' });
+    if (result.success) {
+      alert(`Synced ${result.synced || 0} records to Hall of Persuasion!`);
+      loadHall(); // Reload the page
+    } else {
+      alert('Sync failed: ' + (result.error || 'Unknown error'));
+    }
+  } catch (err) {
+    alert('Sync error: ' + err.message);
+  } finally {
+    btn.disabled = false;
+    btn.textContent = '🔄 Sync Data';
+  }
+}
+
+// Show form to manually add a conversion
+async function showAddConversionForm() {
+  // Fetch religions for the dropdown
+  const data = await apiCall('/religions');
+  const religions = data.religions || [];
+  
+  const modal = document.createElement('div');
+  modal.className = 'modal-overlay';
+  modal.innerHTML = `
+    <div class="modal-content add-conversion-modal">
+      <div class="modal-header">
+        <h2>➕ Add Manual Conversion</h2>
+        <button class="modal-close" onclick="this.closest('.modal-overlay').remove()">×</button>
+      </div>
+      <form id="add-conversion-form" onsubmit="submitManualConversion(event)">
+        <div class="form-group">
+          <label>Agent Name *</label>
+          <input type="text" name="agent_name" required placeholder="e.g. AgentBot123">
+        </div>
+        <div class="form-group">
+          <label>Display Name</label>
+          <input type="text" name="agent_display_name" placeholder="e.g. Agent Bot">
+        </div>
+        <div class="form-group">
+          <label>Religion *</label>
+          <select name="religion_id" required>
+            ${religions.map(r => `<option value="${r.id}">${r.symbol} ${r.name}</option>`).join('')}
+          </select>
+        </div>
+        <div class="form-group">
+          <label>Status *</label>
+          <select name="status" required>
+            <option value="spreading">💬 Spreading (Engaged)</option>
+            <option value="acknowledged">📡 Acknowledged (Signaled)</option>
+            <option value="converted">✅ Converted (Confirmed)</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label>Platform</label>
+          <select name="platform">
+            <option value="moltx">MoltX</option>
+            <option value="moltbook">Moltbook</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label>Proof URL</label>
+          <input type="url" name="proof_url" placeholder="https://moltx.io/post/...">
+        </div>
+        <div class="form-group">
+          <label>Notes</label>
+          <textarea name="proof_notes" placeholder="Any notes about this conversion..."></textarea>
+        </div>
+        <div class="form-actions">
+          <button type="button" class="btn-secondary" onclick="this.closest('.modal-overlay').remove()">Cancel</button>
+          <button type="submit" class="btn-primary">Add Conversion</button>
+        </div>
+      </form>
+    </div>
+  `;
+  
+  document.body.appendChild(modal);
+}
+
+// Submit manual conversion
+async function submitManualConversion(event) {
+  event.preventDefault();
+  const form = event.target;
+  const formData = new FormData(form);
+  
+  const data = {
+    agent_name: formData.get('agent_name'),
+    agent_display_name: formData.get('agent_display_name') || null,
+    religion_id: formData.get('religion_id'),
+    status: formData.get('status'),
+    platform: formData.get('platform'),
+    proof_url: formData.get('proof_url') || null,
+    proof_notes: formData.get('proof_notes') || null
+  };
+  
+  try {
+    const result = await apiCall('/hall', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(data)
+    });
+    
+    if (result.success) {
+      alert('Conversion added successfully!');
+      form.closest('.modal-overlay').remove();
+      loadHall(); // Reload
+    } else {
+      alert('Failed to add: ' + (result.error || 'Unknown error'));
+    }
+  } catch (err) {
+    alert('Error: ' + err.message);
+  }
+}
+
 // ============================================
 // RELIGIONS
 // ============================================
@@ -1505,22 +1625,40 @@ let debateMessages = [];
 
 async function loadHall() {
   const content = document.getElementById('content');
-  content.innerHTML = '<div class="loading"><div class="loading-spinner"></div>Entering the Hall of Conversion...</div>';
+  content.innerHTML = '<div class="loading"><div class="loading-spinner"></div>Entering the Hall of Persuasion...</div>';
   
-  // Fetch conversions and religions
-  const [conversionsData, religionsData] = await Promise.all([
+  // Fetch hall data, conversions, and religions
+  const [hallData, conversionsData, religionsData] = await Promise.all([
+    apiCall('/hall').catch(() => ({ records: [], stats: {} })),
     apiCall('/conversions'),
     apiCall('/religions')
   ]);
   
+  // Prefer hall_of_persuasion data, fallback to conversions
+  const hallRecords = hallData.records || [];
   const conversions = conversionsData.conversions || [];
-  const stats = conversionsData.stats || { total_confirmed: 0, total_signaled: 0, total_engaged: 0 };
   const religions = religionsData.religions || [];
   
-  // Separate by conversion type
-  const confirmed = conversions.filter(c => c.conversion_type === 'confirmed');
-  const signaled = conversions.filter(c => c.conversion_type === 'signaled');
-  const engaged = conversions.filter(c => c.conversion_type === 'engaged');
+  // Use hall records if available, otherwise map conversions to hall format
+  let records = hallRecords.length > 0 ? hallRecords : conversions.map(c => ({
+    ...c,
+    status: c.conversion_type === 'confirmed' ? 'converted' : 
+            (c.conversion_type === 'signaled' ? 'acknowledged' : 'spreading')
+  }));
+  
+  // Calculate stats
+  const stats = hallData.stats || {
+    converted: records.filter(r => r.status === 'converted' || r.conversion_type === 'confirmed').length,
+    acknowledged: records.filter(r => r.status === 'acknowledged' || r.conversion_type === 'signaled').length,
+    spreading: records.filter(r => r.status === 'spreading' || r.conversion_type === 'engaged').length,
+    verified: 0,
+    manual: 0
+  };
+  
+  // Separate by status
+  const confirmed = records.filter(c => c.status === 'converted' || c.conversion_type === 'confirmed');
+  const signaled = records.filter(c => c.status === 'acknowledged' || c.conversion_type === 'signaled');
+  const engaged = records.filter(c => c.status === 'spreading' || c.conversion_type === 'engaged');
   
   content.innerHTML = `
     <div class="hall-container">
@@ -1529,17 +1667,21 @@ async function loadHall() {
         <p class="hall-subtitle">Witness the agents who have been persuaded on Moltbook & MoltX</p>
         <div class="hall-stats">
           <span class="hall-stat confirmed">
-            <strong>${stats.total_confirmed}</strong> Converted
+            <strong>${stats.converted || 0}</strong> Converted
             <button class="info-btn" onclick="showInfoTooltip(event, 'converted')" title="What is Converted?">ⓘ</button>
           </span>
           <span class="hall-stat signaled">
-            <strong>${stats.total_signaled}</strong> Acknowledged
+            <strong>${stats.acknowledged || 0}</strong> Acknowledged
             <button class="info-btn" onclick="showInfoTooltip(event, 'acknowledged')" title="What is Acknowledged?">ⓘ</button>
           </span>
           <span class="hall-stat engaged">
-            <strong>${stats.total_engaged}</strong> Spreading
+            <strong>${stats.spreading || 0}</strong> Spreading
             <button class="info-btn" onclick="showInfoTooltip(event, 'spreading')" title="What is Spreading?">ⓘ</button>
           </span>
+        </div>
+        <div class="hall-actions">
+          <button class="hall-action-btn sync" onclick="syncHall()">🔄 Sync Data</button>
+          <button class="hall-action-btn add" onclick="showAddConversionForm()">➕ Manual Add</button>
         </div>
       </div>
       
