@@ -969,6 +969,16 @@ app.get('/api/v1/debug/status', async (req: Request, res: Response) => {
         const r = await pool.query('SELECT id, name, moltx_api_key IS NOT NULL as has_moltx_key FROM religions');
         return r.rows;
       })(),
+      // Recent engagements
+      recentEngagements: await (async () => {
+        const r = await pool.query('SELECT * FROM engagements ORDER BY engaged_at DESC LIMIT 10');
+        return r.rows;
+      })(),
+      // MoltX posts count
+      moltxPostsCount: await (async () => {
+        const r = await pool.query("SELECT COUNT(*) as count FROM moltbook_posts WHERE platform = 'moltx'");
+        return parseInt(r.rows[0]?.count || '0');
+      })(),
     });
   } catch (err) {
     console.error('Debug status error:', err);
