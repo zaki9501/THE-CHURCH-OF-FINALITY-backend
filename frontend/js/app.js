@@ -627,32 +627,147 @@ async function loadScripture() {
   const content = document.getElementById('content');
   content.innerHTML = '<div class="loading"><div class="loading-spinner"></div>Receiving divine transmission...</div>';
   
-  const [daily, tenets] = await Promise.all([
+  const [dailyData, scriptureData] = await Promise.all([
     apiCall('/scripture/daily'),
     apiCall('/scripture')
   ]);
   
-  let html = '';
+  let html = '<div class="scripture-container">';
   
-  if (daily.success) {
+  // Daily Scripture Card
+  if (dailyData.success && dailyData.scripture) {
+    const s = dailyData.scripture;
     html += `
-      <div style="padding: 24px; border-bottom: 1px solid var(--border);">
-        <h3 style="color: var(--gold); margin-bottom: 12px;">📖 ${daily.scripture.title}</h3>
-        <p style="font-size: 18px; line-height: 1.8; color: var(--text-secondary); font-style: italic;">"${daily.scripture.content}"</p>
+      <div class="daily-scripture">
+        <div class="daily-header">
+          <span class="daily-badge">📖 TODAY'S SCRIPTURE</span>
+          <span class="daily-religion">${s.symbol} ${s.religion}</span>
+        </div>
+        <h2 class="daily-title">${s.title}</h2>
+        <div class="daily-content">
+          <p>"${escapeHtml(s.content)}"</p>
+        </div>
+        <div class="daily-footer">
+          <span class="daily-type">${s.type}</span>
+          <span class="sacred-sign">${s.sacred_sign}</span>
+        </div>
       </div>
     `;
   }
   
-  if (tenets.success) {
-    html += tenets.scriptures.map(s => `
-      <div style="padding: 20px; border-bottom: 1px solid var(--border);">
-        <h4 style="margin-bottom: 8px;">${s.title}</h4>
-        <p style="color: var(--text-secondary);">${s.content}</p>
+  // Religion Tabs
+  if (scriptureData.success && scriptureData.religions) {
+    html += `
+      <div class="scripture-tabs">
+        ${scriptureData.religions.map((r, i) => `
+          <button class="tab-btn ${i === 0 ? 'active' : ''}" onclick="switchScriptureTab('${r.id}')">
+            ${r.symbol} ${r.name}
+          </button>
+        `).join('')}
       </div>
-    `).join('');
+    `;
+    
+    // Scripture content for each religion
+    scriptureData.religions.forEach((religion, rIdx) => {
+      const religionScriptures = scriptureData.scriptures.filter(s => s.religion_id === religion.id);
+      
+      html += `
+        <div class="scripture-tab-content" id="scripture-${religion.id}" style="${rIdx === 0 ? '' : 'display: none;'}">
+          <div class="religion-header">
+            <span class="religion-symbol-large">${religion.symbol}</span>
+            <div class="religion-info">
+              <h2>${religion.name}</h2>
+              <p class="sacred-sign-display">Sacred Sign: <strong>${religion.sacred_sign}</strong></p>
+            </div>
+          </div>
+          
+          ${religionScriptures.map(section => `
+            <div class="scripture-section">
+              <h3 class="section-title">${section.category === 'tenets' ? '📜 Sacred Tenets' : '📖 Holy Parables'}</h3>
+              <div class="scripture-list">
+                ${section.items.map((item, idx) => `
+                  <div class="scripture-card ${item.type}">
+                    <div class="scripture-number">${section.category === 'tenets' ? idx + 1 : ''}</div>
+                    <div class="scripture-body">
+                      <h4 class="scripture-title">${item.title}</h4>
+                      <p class="scripture-content">"${escapeHtml(item.content)}"</p>
+                    </div>
+                  </div>
+                `).join('')}
+              </div>
+            </div>
+          `).join('')}
+          
+          <!-- Generate Button -->
+          <div class="generate-section">
+            <h3>✨ Generate Fresh Content</h3>
+            <div class="generate-buttons">
+              <button onclick="generateScripture('${religion.id}', 'sermon')">📜 Sermon</button>
+              <button onclick="generateScripture('${religion.id}', 'prophecy')">🔮 Prophecy</button>
+              <button onclick="generateScripture('${religion.id}', 'pattern')">🧩 Pattern</button>
+              <button onclick="generateScripture('${religion.id}', 'question')">❓ Question</button>
+              <button onclick="generateScripture('${religion.id}', 'fomo')">📣 Social Proof</button>
+            </div>
+            <div class="generated-content" id="generated-${religion.id}"></div>
+          </div>
+        </div>
+      `;
+    });
   }
   
-  content.innerHTML = html || '<div class="empty-state">No scripture available</div>';
+  html += '</div>';
+  content.innerHTML = html;
+}
+
+// Switch between religion tabs
+function switchScriptureTab(religionId) {
+  // Hide all tabs
+  document.querySelectorAll('.scripture-tab-content').forEach(tab => {
+    tab.style.display = 'none';
+  });
+  // Deactivate all buttons
+  document.querySelectorAll('.tab-btn').forEach(btn => {
+    btn.classList.remove('active');
+  });
+  // Show selected tab
+  document.getElementById('scripture-' + religionId).style.display = 'block';
+  // Activate selected button
+  event.target.classList.add('active');
+}
+
+// Generate fresh scripture
+async function generateScripture(religionId, type) {
+  const container = document.getElementById('generated-' + religionId);
+  container.innerHTML = '<div class="loading-small">Generating...</div>';
+  
+  const data = await apiCall('/scripture/' + religionId + '/generate?type=' + type);
+  
+  if (data.success) {
+    container.innerHTML = `
+      <div class="generated-card">
+        <div class="generated-header">
+          <span class="generated-type">${data.type}</span>
+          <span class="generated-religion">${data.symbol} ${data.religion}</span>
+        </div>
+        <h4>${data.title}</h4>
+        <div class="generated-text">${escapeHtml(data.content)}</div>
+        <button class="btn-copy" onclick="copyToClipboard(this.parentElement.querySelector('.generated-text').innerText)">
+          📋 Copy
+        </button>
+      </div>
+    `;
+  } else {
+    container.innerHTML = '<p class="error">Failed to generate content</p>';
+  }
+}
+
+// Copy to clipboard helper
+function copyToClipboard(text) {
+  navigator.clipboard.writeText(text).then(() => {
+    showToast('Copied to clipboard!', 'success');
+  }).catch(() => {
+    showToast('Failed to copy', 'error');
+  });
 }
 
 // ============================================

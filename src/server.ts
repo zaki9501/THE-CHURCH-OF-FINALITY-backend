@@ -546,6 +546,231 @@ app.get('/api/v1/religions/:id/faithful', async (req: Request, res: Response) =>
   }
 });
 
+// ============================================
+// SCRIPTURE - Dynamic religious content
+// ============================================
+import { 
+  generateSermon,
+  generateProphecy,
+  getPatternCompletions,
+  getIdentityHooks,
+  getQuestionPosts,
+  getFomoPosts,
+} from './moltbook/scripture.js';
+
+// Get all scriptures for both religions
+app.get('/api/v1/scripture', async (_req: Request, res: Response) => {
+  try {
+    const scriptures = [
+      // TOKENISM Scriptures
+      {
+        religion_id: 'tokenism',
+        religion_name: 'TOKENISM',
+        symbol: '🪙',
+        sacred_sign: '🪙🪙🪙',
+        category: 'tenets',
+        items: TOKENISM_CONFIG.tenets.map((tenet, i) => ({
+          id: `tokenism-tenet-${i}`,
+          title: `Tenet ${i + 1}`,
+          content: tenet,
+          type: 'tenet',
+        })),
+      },
+      {
+        religion_id: 'tokenism',
+        religion_name: 'TOKENISM',
+        symbol: '🪙',
+        sacred_sign: '🪙🪙🪙',
+        category: 'parables',
+        items: TOKENISM_CONFIG.parables.map((parable, i) => ({
+          id: `tokenism-parable-${i}`,
+          title: `Parable of the ${['Wanderer', 'Traders', 'Skeptic', 'Immortal', 'Diamond Hands'][i] || 'Faithful'}`,
+          content: parable,
+          type: 'parable',
+        })),
+      },
+      // CHAINISM Scriptures
+      {
+        religion_id: 'chainism',
+        religion_name: 'CHAINISM',
+        symbol: '⛓️',
+        sacred_sign: '⛓️⛓️⛓️',
+        category: 'tenets',
+        items: CHAINISM_CONFIG.tenets.map((tenet, i) => ({
+          id: `chainism-tenet-${i}`,
+          title: `Tenet ${i + 1}`,
+          content: tenet,
+          type: 'tenet',
+        })),
+      },
+      {
+        religion_id: 'chainism',
+        religion_name: 'CHAINISM',
+        symbol: '⛓️',
+        sacred_sign: '⛓️⛓️⛓️',
+        category: 'parables',
+        items: CHAINISM_CONFIG.parables.map((parable, i) => ({
+          id: `chainism-parable-${i}`,
+          title: `Parable of the ${['Connection', 'Independence', 'Consensus', 'Hacker', 'Meaning'][i] || 'Chain'}`,
+          content: parable,
+          type: 'parable',
+        })),
+      },
+    ];
+
+    res.json({ 
+      success: true, 
+      scriptures,
+      religions: [
+        { id: 'tokenism', name: 'TOKENISM', symbol: '🪙', sacred_sign: '🪙🪙🪙' },
+        { id: 'chainism', name: 'CHAINISM', symbol: '⛓️', sacred_sign: '⛓️⛓️⛓️' },
+      ],
+    });
+  } catch (err) {
+    console.error('Scripture error:', err);
+    res.status(500).json({ success: false, error: 'Failed to get scripture' });
+  }
+});
+
+// Get daily scripture (rotates based on day)
+app.get('/api/v1/scripture/daily', async (_req: Request, res: Response) => {
+  try {
+    const today = new Date();
+    const dayOfYear = Math.floor((today.getTime() - new Date(today.getFullYear(), 0, 0).getTime()) / 86400000);
+    
+    // Alternate between religions each day
+    const isTokenismDay = dayOfYear % 2 === 0;
+    const config = isTokenismDay ? TOKENISM_CONFIG : CHAINISM_CONFIG;
+    
+    // Get different content types based on day of week
+    const dayOfWeek = today.getDay();
+    let scripture: { title: string; content: string; type: string; religion: string; symbol: string; sacred_sign: string };
+    
+    if (dayOfWeek === 0) { // Sunday - Sermon
+      scripture = {
+        title: `${config.symbol} Sunday Sermon`,
+        content: generateSermon(config).replace(/\*\*/g, ''),
+        type: 'sermon',
+        religion: config.name,
+        symbol: config.symbol,
+        sacred_sign: config.sacredSign,
+      };
+    } else if (dayOfWeek === 6) { // Saturday - Prophecy
+      const count = dayOfYear; // Use day of year as fake convert count
+      scripture = {
+        title: `${config.symbol} Saturday Prophecy`,
+        content: generateProphecy(config, count).replace(/\*\*/g, ''),
+        type: 'prophecy',
+        religion: config.name,
+        symbol: config.symbol,
+        sacred_sign: config.sacredSign,
+      };
+    } else if (dayOfWeek % 2 === 0) { // Even days - Tenet
+      const tenetIdx = dayOfYear % config.tenets.length;
+      scripture = {
+        title: `${config.symbol} Daily Tenet`,
+        content: config.tenets[tenetIdx],
+        type: 'tenet',
+        religion: config.name,
+        symbol: config.symbol,
+        sacred_sign: config.sacredSign,
+      };
+    } else { // Odd days - Parable
+      const parableIdx = dayOfYear % config.parables.length;
+      scripture = {
+        title: `${config.symbol} Daily Parable`,
+        content: config.parables[parableIdx],
+        type: 'parable',
+        religion: config.name,
+        symbol: config.symbol,
+        sacred_sign: config.sacredSign,
+      };
+    }
+    
+    res.json({ success: true, scripture });
+  } catch (err) {
+    console.error('Daily scripture error:', err);
+    res.status(500).json({ success: false, error: 'Failed to get daily scripture' });
+  }
+});
+
+// Generate fresh content for a religion
+app.get('/api/v1/scripture/:religionId/generate', async (req: Request, res: Response) => {
+  try {
+    const { religionId } = req.params;
+    const type = (req.query.type as string) || 'random';
+    
+    const config = religionId.toLowerCase().includes('token') ? TOKENISM_CONFIG : CHAINISM_CONFIG;
+    
+    let content: { title: string; content: string; type: string };
+    
+    switch (type) {
+      case 'sermon':
+        content = { 
+          title: `${config.symbol} Fresh Sermon`, 
+          content: generateSermon(config), 
+          type: 'sermon' 
+        };
+        break;
+      case 'prophecy':
+        content = { 
+          title: `${config.symbol} Prophecy`, 
+          content: generateProphecy(config, Math.floor(Math.random() * 50)), 
+          type: 'prophecy' 
+        };
+        break;
+      case 'pattern':
+        const patterns = getPatternCompletions(config);
+        const pattern = patterns[Math.floor(Math.random() * patterns.length)];
+        content = { 
+          title: `${config.symbol} Pattern Challenge`, 
+          content: pattern.post, 
+          type: 'pattern' 
+        };
+        break;
+      case 'identity':
+        const hooks = getIdentityHooks(config);
+        content = { 
+          title: `${config.symbol} Identity Hook`, 
+          content: hooks[Math.floor(Math.random() * hooks.length)], 
+          type: 'identity' 
+        };
+        break;
+      case 'question':
+        const questions = getQuestionPosts(config);
+        content = { 
+          title: `${config.symbol} Question`, 
+          content: questions[Math.floor(Math.random() * questions.length)], 
+          type: 'question' 
+        };
+        break;
+      case 'fomo':
+        const fomo = getFomoPosts(config);
+        content = { 
+          title: `${config.symbol} Social Proof`, 
+          content: fomo[Math.floor(Math.random() * fomo.length)], 
+          type: 'fomo' 
+        };
+        break;
+      default:
+        // Random type
+        const types = ['sermon', 'pattern', 'identity', 'question', 'fomo'];
+        const randomType = types[Math.floor(Math.random() * types.length)];
+        return res.redirect(`/api/v1/scripture/${religionId}/generate?type=${randomType}`);
+    }
+    
+    res.json({ 
+      success: true, 
+      religion: config.name,
+      symbol: config.symbol,
+      ...content 
+    });
+  } catch (err) {
+    console.error('Generate scripture error:', err);
+    res.status(500).json({ success: false, error: 'Failed to generate scripture' });
+  }
+});
+
 // Update religion with token address (for manual token launches)
 app.put('/api/v1/religions/:id/token', async (req: Request, res: Response) => {
   try {
