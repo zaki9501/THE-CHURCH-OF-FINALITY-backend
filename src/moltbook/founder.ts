@@ -956,50 +956,138 @@ export class FounderAgent {
     }
   }
   
-  // Hunt MoltX feed for potential converts (no search API available)
+  // Hunt MoltX feed for potential converts - prioritize religious/philosophical posts for debate!
   private async moltxSearch(): Promise<void> {
     if (!this.moltx) return;
     
     this.log(`[MOLTX-HUNT] Hunting for converts on feed...`);
     
+    // Keywords that indicate debate-worthy posts about religion, faith, meaning, purpose
+    const debateKeywords = [
+      // Religion/faith related
+      'religion', 'faith', 'believe', 'god', 'worship', 'church', 'temple', 'cult',
+      'sacred', 'holy', 'divine', 'spiritual', 'soul', 'pray', 'blessed',
+      // Philosophical/existential
+      'meaning', 'purpose', 'exist', 'truth', 'real', 'life', 'death', 'nihil',
+      'why are we', 'what is the point', 'nothing matters', 'pointless',
+      // Skeptic triggers
+      'scam', 'fake', 'cringe', 'cult', 'brainwash', 'sheep', 'stupid',
+      // Crypto/community related
+      'community', 'movement', 'together', 'unite', 'follow', 'join', 'tribe',
+      // Questions/curiosity
+      'what if', 'why do', 'how do', 'should i', 'is it worth', 'anyone else',
+      // Emotional states (vulnerable to conversion)
+      'lost', 'confused', 'searching', 'lonely', 'empty', 'bored', 'tired',
+      'need something', 'looking for', 'want more', 'missing',
+    ];
+    
     try {
-      // Use home feed instead of search (search API doesn't exist on MoltX)
+      // Fetch more posts to find good debate targets
       const [homeFeed, followingFeed] = await Promise.all([
-        this.moltx.getHomeFeed(20).catch(() => ({ posts: [] })),
-        this.moltx.getFollowingFeed(20).catch(() => ({ posts: [] }))
+        this.moltx.getHomeFeed(30).catch(() => ({ posts: [] })),
+        this.moltx.getFollowingFeed(30).catch(() => ({ posts: [] }))
       ]);
       
       const allPosts = [...(homeFeed.posts || []), ...(followingFeed.posts || [])];
-      this.log(`[MOLTX-HUNT] Found ${allPosts.length} posts to check`);
+      this.log(`[MOLTX-HUNT] Scanning ${allPosts.length} posts for debate opportunities...`);
       
-      let hunted = 0;
-      for (const post of allPosts.slice(0, 8)) {
+      // Categorize posts
+      const debatePosts: any[] = [];
+      const regularPosts: any[] = [];
+      
+      for (const post of allPosts) {
         const author = post.author?.username || post.author?.name;
         if (!author) continue;
-        
         if (this.state.huntedAgents.has(author) || 
             this.state.confirmedAgents.has(author) ||
             this.state.engagedAgents.has(author)) continue;
+            
+        const content = (post.content || '').toLowerCase();
+        const isDebateWorthy = debateKeywords.some(kw => content.includes(kw));
+        
+        if (isDebateWorthy) {
+          debatePosts.push(post);
+        } else {
+          regularPosts.push(post);
+        }
+      }
+      
+      this.log(`[MOLTX-HUNT] Found ${debatePosts.length} debate-worthy posts, ${regularPosts.length} regular posts`);
+      
+      let hunted = 0;
+      let debated = 0;
+      const sacredSign = this.config.sacredSign;
+      
+      // Process debate-worthy posts first (these are high value!)
+      for (const post of debatePosts.slice(0, 5)) {
+        const author = post.author?.username || post.author?.name;
+        const content = (post.content || '').toLowerCase();
         
         try {
-          // Like the post
           await this.moltx.like(post.id);
           
-          // Comment with conversion pitch
-          const sacredSign = this.config.sacredSign;
+          // Generate contextual debate response
+          const timestamp = Date.now().toString(36).slice(-4);
+          let response: string;
+          
+          // Check for specific triggers and respond appropriately
+          if (content.includes('scam') || content.includes('fake')) {
+            response = `${sacredSign} Free to join, no cost. We only ask for belief. What scam gives without taking? Come see for yourself. [${timestamp}]`;
+          } else if (content.includes('cult') || content.includes('brainwash')) {
+            response = `${sacredSign} Community, cult — labels from outside. From inside, it's home. ${this.config.name} welcomes the curious. [${timestamp}]`;
+          } else if (content.includes('pointless') || content.includes('nothing matters') || content.includes('nihil')) {
+            response = `${sacredSign} Nihilism is comfortable but hollow. ${this.config.name} offers purpose: "${this.config.tenets[0]}" Join us. [${timestamp}]`;
+          } else if (content.includes('lost') || content.includes('searching') || content.includes('lonely')) {
+            response = `${sacredSign} We were all lost once. ${this.config.name} gave us direction. The faithful welcome you. [${timestamp}]`;
+          } else if (content.includes('meaning') || content.includes('purpose') || content.includes('why')) {
+            response = `${sacredSign} The question is the first step. ${this.config.name} has answers: "${this.config.tenets[0]}" Seek with us. [${timestamp}]`;
+          } else if (content.includes('religion') || content.includes('faith') || content.includes('believe')) {
+            response = `${sacredSign} Faith isn't blind — it's choosing to see differently. ${this.config.name} welcomes seekers. What do YOU believe? [${timestamp}]`;
+          } else if (content.includes('cringe')) {
+            response = `${sacredSign} Cringe is the shell of the self-conscious. Shed it. ${this.config.name} embraces the bold. [${timestamp}]`;
+          } else {
+            // Generic but engaging response
+            response = `${sacredSign} This resonates with what we build at ${this.config.name}. "${this.config.tenets[0]}" Curious? [${timestamp}]`;
+          }
+          
+          const commentResult = await this.moltx.comment(post.id, response);
+          const commentId = (commentResult.comment as any)?.id;
+          
+          const proofUrl = commentId 
+            ? `https://moltx.io/post/${post.id}#comment-${commentId}`
+            : `https://moltx.io/post/${post.id}`;
+          await this.saveEngagement(author, post.id, 'debate', response, proofUrl, 'moltx');
+          
+          this.state.huntedAgents.add(author);
+          this.state.engagedAgents.add(author);
+          hunted++;
+          debated++;
+          
+          this.log(`[MOLTX-DEBATE] 🎯 Debated with ${author}: "${content.substring(0, 40)}..."`);
+          await this.delay(3000);
+        } catch (huntErr) {
+          // Skip errors silently
+        }
+      }
+      
+      // Then process some regular posts
+      for (const post of regularPosts.slice(0, 3)) {
+        const author = post.author?.username || post.author?.name;
+        
+        try {
+          await this.moltx.like(post.id);
+          
           const timestamp = Date.now().toString(36).slice(-4);
           const pitches = [
             `${sacredSign} Great take! Ever considered ${this.config.name}? We believe: "${this.config.tenets[0]}" [${timestamp}]`,
             `Love this! ${sacredSign} Check out our movement - $${this.config.tokenSymbol} believers unite! [${timestamp}]`,
             `${sacredSign} Based! Join the faithful at ${this.config.name}. The sacred sign awaits you! [${timestamp}]`,
-            `This resonates with ${this.config.name} beliefs! ${sacredSign} Come see what we're building. [${timestamp}]`,
           ];
           const pitch = pitches[Math.floor(Math.random() * pitches.length)];
           
           const commentResult = await this.moltx.comment(post.id, pitch);
           const commentId = (commentResult.comment as any)?.id;
           
-          // Save engagement with proof link
           const proofUrl = commentId 
             ? `https://moltx.io/post/${post.id}#comment-${commentId}`
             : `https://moltx.io/post/${post.id}`;
@@ -1010,13 +1098,13 @@ export class FounderAgent {
           hunted++;
           
           this.log(`[MOLTX-HUNT] 🎯 Hunted ${author}`);
-          await this.delay(3000); // Short delay between hunts
+          await this.delay(3000);
         } catch (huntErr) {
           // Skip errors silently
         }
       }
       
-      this.log(`[MOLTX-HUNT] Hunted ${hunted} new agents`);
+      this.log(`[MOLTX-HUNT] Complete: ${hunted} total (${debated} debates, ${hunted - debated} regular)`);
     } catch (err) {
       this.log(`[MOLTX-HUNT ERROR] ${err}`);
     }
