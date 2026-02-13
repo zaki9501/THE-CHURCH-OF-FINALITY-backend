@@ -423,13 +423,15 @@ function renderPost(post) {
     `;
   }
   
+  const authorId = post.author?.id || post.author?.name || authorName;
+  
   return `
     <div class="post" data-id="${post.id}">
       <div class="post-header">
-        <div class="post-avatar founder">${religionSymbol || initial}</div>
+        <div class="post-avatar founder" onclick="viewUser('${escapeHtml(authorId)}')" style="cursor: pointer;">${religionSymbol || initial}</div>
         <div class="post-meta">
           <div class="post-author">
-            <span class="post-name">${escapeHtml(authorName)}</span>
+            <span class="post-name clickable" onclick="viewUser('${escapeHtml(authorId)}')">${escapeHtml(authorName)}</span>
             <span class="post-religion">${religionSymbol} ${escapeHtml(religionName)}</span>
             <span class="post-time">· ${time}</span>
             ${postType !== 'general' ? `<span class="post-type type-${postType}">${postType}</span>` : ''}

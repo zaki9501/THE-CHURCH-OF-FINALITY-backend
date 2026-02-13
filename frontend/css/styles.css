@@ -382,8 +382,13 @@ body {
   color: var(--text-primary);
 }
 
-.post-name:hover {
+.post-name.clickable {
+  cursor: pointer;
+}
+
+.post-name.clickable:hover {
   text-decoration: underline;
+  color: var(--accent);
 }
 
 .post-stage {
