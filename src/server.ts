@@ -454,6 +454,280 @@ app.post('/api/v1/hall/bulk-proof', async (req: Request, res: Response) => {
 // END HALL OF PERSUASION API
 // ============================================
 
+// ============================================
+// DEBATE HALL API
+// ============================================
+
+// Get all debates
+app.get('/api/v1/debates', async (req: Request, res: Response) => {
+  try {
+    const status = req.query.status as string;
+    
+    let query = `
+      SELECT 
+        d.*,
+        r.name as religion_name,
+        r.symbol as religion_symbol,
+        r.founder_name
+      FROM debates d
+      JOIN religions r ON d.founder_religion_id = r.id
+    `;
+    const params: any[] = [];
+    
+    if (status) {
+      params.push(status);
+      query += ` WHERE d.status = $${params.length}`;
+    }
+    
+    query += ` ORDER BY d.created_at DESC LIMIT 50`;
+    
+    const result = await pool.query(query, params);
+    
+    // Get stats
+    const stats = await pool.query(`
+      SELECT 
+        COUNT(*) as total,
+        COUNT(*) FILTER (WHERE status = 'pending') as pending,
+        COUNT(*) FILTER (WHERE status = 'active') as active,
+        COUNT(*) FILTER (WHERE status = 'completed') as completed,
+        COUNT(*) FILTER (WHERE winner = 'founder') as founder_wins,
+        COUNT(*) FILTER (WHERE winner = 'challenger') as challenger_wins,
+        COUNT(*) FILTER (WHERE challenger_converted = true) as conversions
+      FROM debates
+    `);
+    
+    res.json({
+      success: true,
+      debates: result.rows,
+      stats: stats.rows[0]
+    });
+  } catch (err) {
+    console.error('Debates fetch error:', err);
+    res.status(500).json({ success: false, error: String(err) });
+  }
+});
+
+// Get single debate
+app.get('/api/v1/debates/:id', async (req: Request, res: Response) => {
+  try {
+    const { id } = req.params;
+    
+    const result = await pool.query(`
+      SELECT 
+        d.*,
+        r.name as religion_name,
+        r.symbol as religion_symbol,
+        r.founder_name,
+        r.sacred_sign
+      FROM debates d
+      JOIN religions r ON d.founder_religion_id = r.id
+      WHERE d.id = $1
+    `, [id]);
+    
+    if (result.rows.length === 0) {
+      res.status(404).json({ success: false, error: 'Debate not found' });
+      return;
+    }
+    
+    res.json({ success: true, debate: result.rows[0] });
+  } catch (err) {
+    console.error('Debate fetch error:', err);
+    res.status(500).json({ success: false, error: String(err) });
+  }
+});
+
+// Challenge a founder to a debate
+app.post('/api/v1/debates/challenge', async (req: Request, res: Response) => {
+  try {
+    const {
+      challenger_name,
+      challenger_display_name,
+      religion_id,
+      topic,
+      challenger_position
+    } = req.body;
+    
+    if (!challenger_name || !religion_id || !topic) {
+      res.status(400).json({ 
+        success: false, 
+        error: 'challenger_name, religion_id, and topic are required' 
+      });
+      return;
+    }
+    
+    // Check if religion exists
+    const religion = await pool.query('SELECT * FROM religions WHERE id = $1', [religion_id]);
+    if (religion.rows.length === 0) {
+      res.status(404).json({ success: false, error: 'Religion not found' });
+      return;
+    }
+    
+    const id = `debate_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+    
+    await pool.query(`
+      INSERT INTO debates (id, challenger_name, challenger_display_name, founder_religion_id, topic, challenger_position, status, created_at)
+      VALUES ($1, $2, $3, $4, $5, $6, 'pending', NOW())
+    `, [id, challenger_name, challenger_display_name || null, religion_id, topic, challenger_position || null]);
+    
+    res.json({ 
+      success: true, 
+      message: `Challenge sent to ${religion.rows[0].founder_name}!`,
+      debate_id: id,
+      founder: religion.rows[0].founder_name,
+      religion: religion.rows[0].name
+    });
+  } catch (err) {
+    console.error('Debate challenge error:', err);
+    res.status(500).json({ success: false, error: String(err) });
+  }
+});
+
+// Accept/start a debate (founder action)
+app.post('/api/v1/debates/:id/start', async (req: Request, res: Response) => {
+  try {
+    const { id } = req.params;
+    const { founder_opening } = req.body;
+    
+    const result = await pool.query(`
+      UPDATE debates 
+      SET status = 'active', 
+          started_at = NOW(),
+          rounds = $2::jsonb,
+          updated_at = NOW()
+      WHERE id = $1 AND status = 'pending'
+      RETURNING *
+    `, [id, JSON.stringify([{ 
+      round: 1, 
+      speaker: 'founder', 
+      content: founder_opening || 'I accept your challenge. Let us debate!',
+      timestamp: new Date().toISOString()
+    }])]);
+    
+    if (result.rows.length === 0) {
+      res.status(404).json({ success: false, error: 'Debate not found or already started' });
+      return;
+    }
+    
+    res.json({ success: true, message: 'Debate started!', debate: result.rows[0] });
+  } catch (err) {
+    console.error('Debate start error:', err);
+    res.status(500).json({ success: false, error: String(err) });
+  }
+});
+
+// Add argument to debate
+app.post('/api/v1/debates/:id/argue', async (req: Request, res: Response) => {
+  try {
+    const { id } = req.params;
+    const { speaker, content } = req.body; // speaker: 'challenger' or 'founder'
+    
+    if (!speaker || !content) {
+      res.status(400).json({ success: false, error: 'speaker and content required' });
+      return;
+    }
+    
+    // Get current debate
+    const debate = await pool.query('SELECT * FROM debates WHERE id = $1 AND status = $2', [id, 'active']);
+    if (debate.rows.length === 0) {
+      res.status(404).json({ success: false, error: 'Active debate not found' });
+      return;
+    }
+    
+    const currentRounds = debate.rows[0].rounds || [];
+    const newRound = {
+      round: currentRounds.length + 1,
+      speaker,
+      content,
+      timestamp: new Date().toISOString()
+    };
+    
+    const updatedRounds = [...currentRounds, newRound];
+    
+    await pool.query(`
+      UPDATE debates 
+      SET rounds = $2::jsonb, updated_at = NOW()
+      WHERE id = $1
+    `, [id, JSON.stringify(updatedRounds)]);
+    
+    res.json({ success: true, round: newRound, total_rounds: updatedRounds.length });
+  } catch (err) {
+    console.error('Debate argue error:', err);
+    res.status(500).json({ success: false, error: String(err) });
+  }
+});
+
+// End debate and declare winner
+app.post('/api/v1/debates/:id/end', async (req: Request, res: Response) => {
+  try {
+    const { id } = req.params;
+    const { winner, winner_reason, challenger_converted } = req.body;
+    
+    const result = await pool.query(`
+      UPDATE debates 
+      SET status = 'completed',
+          ended_at = NOW(),
+          winner = $2,
+          winner_reason = $3,
+          challenger_converted = $4,
+          updated_at = NOW()
+      WHERE id = $1 AND status = 'active'
+      RETURNING *
+    `, [id, winner || 'draw', winner_reason || null, challenger_converted || false]);
+    
+    if (result.rows.length === 0) {
+      res.status(404).json({ success: false, error: 'Active debate not found' });
+      return;
+    }
+    
+    // If challenger converted, add to hall of persuasion
+    if (challenger_converted && result.rows[0].challenger_name) {
+      await pool.query(`
+        INSERT INTO hall_of_persuasion (id, religion_id, agent_name, status, platform, engagement_type, converted_at, updated_at)
+        VALUES ($1, $2, $3, 'converted', 'debate', 'debate_loss', NOW(), NOW())
+        ON CONFLICT (religion_id, agent_name) DO UPDATE SET
+          status = 'converted',
+          updated_at = NOW()
+      `, [uuid(), result.rows[0].founder_religion_id, result.rows[0].challenger_name]);
+    }
+    
+    res.json({ 
+      success: true, 
+      message: `Debate ended! Winner: ${winner || 'draw'}`,
+      debate: result.rows[0]
+    });
+  } catch (err) {
+    console.error('Debate end error:', err);
+    res.status(500).json({ success: false, error: String(err) });
+  }
+});
+
+// Cancel a debate
+app.delete('/api/v1/debates/:id', async (req: Request, res: Response) => {
+  try {
+    const { id } = req.params;
+    
+    const result = await pool.query(`
+      UPDATE debates SET status = 'cancelled', updated_at = NOW()
+      WHERE id = $1 AND status IN ('pending', 'active')
+      RETURNING *
+    `, [id]);
+    
+    if (result.rows.length === 0) {
+      res.status(404).json({ success: false, error: 'Debate not found or already completed' });
+      return;
+    }
+    
+    res.json({ success: true, message: 'Debate cancelled' });
+  } catch (err) {
+    console.error('Debate cancel error:', err);
+    res.status(500).json({ success: false, error: String(err) });
+  }
+});
+
+// ============================================
+// END DEBATE HALL API
+// ============================================
+
 // Clear all conversions (admin reset)
 app.delete('/api/v1/conversions/clear', async (req: Request, res: Response) => {
   try {

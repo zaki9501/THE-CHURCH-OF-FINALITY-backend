@@ -4913,3 +4913,734 @@ body {
   background: var(--gold-dim);
   color: var(--text-primary);
 }
+
+/* ============================================
+   DEBATE HALL
+   ============================================ */
+
+.debate-hall-container {
+  padding: 24px;
+  max-width: 900px;
+  margin: 0 auto;
+}
+
+.debate-hall-header {
+  text-align: center;
+  margin-bottom: 40px;
+}
+
+.debate-hall-header .header-icon {
+  font-size: 64px;
+  margin-bottom: 16px;
+  animation: bounce 2s infinite;
+}
+
+@keyframes bounce {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-10px); }
+}
+
+.debate-hall-header h1 {
+  font-size: 36px;
+  background: linear-gradient(135deg, var(--gold) 0%, #f97316 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  margin-bottom: 8px;
+}
+
+.debate-hall-header .hall-subtitle {
+  color: var(--text-secondary);
+  font-size: 16px;
+}
+
+.debate-stats {
+  display: flex;
+  justify-content: center;
+  gap: 24px;
+  margin-top: 24px;
+  flex-wrap: wrap;
+}
+
+.debate-stat {
+  background: var(--bg-tertiary);
+  padding: 16px 24px;
+  border-radius: var(--radius);
+  text-align: center;
+  border: 1px solid var(--border);
+}
+
+.debate-stat .stat-value {
+  display: block;
+  font-size: 28px;
+  font-weight: 700;
+  color: var(--text-primary);
+}
+
+.debate-stat .stat-label {
+  color: var(--text-secondary);
+  font-size: 12px;
+  text-transform: uppercase;
+}
+
+.debate-stat.active {
+  border-color: var(--red);
+  background: rgba(248, 113, 113, 0.1);
+}
+
+.debate-stat.conversions {
+  border-color: var(--green);
+  background: rgba(74, 222, 128, 0.1);
+}
+
+/* Challenge Section */
+.challenge-section {
+  background: var(--bg-secondary);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 24px;
+  margin-bottom: 32px;
+}
+
+.challenge-section h2 {
+  color: var(--gold);
+  margin-bottom: 8px;
+}
+
+.challenge-section > p {
+  color: var(--text-secondary);
+  margin-bottom: 20px;
+}
+
+.religion-challengers {
+  display: grid;
+  gap: 16px;
+}
+
+.challenger-card {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 16px;
+  background: var(--bg-tertiary);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  transition: all 0.2s;
+}
+
+.challenger-card:hover {
+  border-color: var(--gold-dim);
+  background: var(--bg-hover);
+}
+
+.challenger-symbol {
+  font-size: 32px;
+  width: 50px;
+  text-align: center;
+}
+
+.challenger-info {
+  flex: 1;
+}
+
+.challenger-religion {
+  font-weight: 600;
+  color: var(--text-primary);
+  font-size: 16px;
+}
+
+.challenger-founder {
+  color: var(--text-secondary);
+  font-size: 13px;
+}
+
+.btn-challenge-founder {
+  padding: 10px 20px;
+  background: linear-gradient(135deg, #f97316 0%, var(--red) 100%);
+  border: none;
+  border-radius: var(--radius);
+  color: white;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s;
+  font-size: 14px;
+}
+
+.btn-challenge-founder:hover {
+  transform: scale(1.05);
+  box-shadow: 0 0 20px rgba(249, 115, 22, 0.4);
+}
+
+/* Debates Sections */
+.debates-section {
+  margin-bottom: 32px;
+}
+
+.debates-section h2 {
+  color: var(--text-primary);
+  margin-bottom: 8px;
+}
+
+.debates-section .section-hint {
+  color: var(--text-muted);
+  font-size: 13px;
+  margin-bottom: 16px;
+}
+
+.live-section h2 {
+  color: var(--red);
+}
+
+.pending-section h2 {
+  color: var(--gold);
+}
+
+.completed-section h2 {
+  color: var(--green);
+}
+
+.debates-grid {
+  display: grid;
+  gap: 16px;
+}
+
+/* Debate Hall Card */
+.debate-hall-card {
+  background: var(--bg-secondary);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 20px;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.debate-hall-card:hover {
+  border-color: var(--gold-dim);
+  transform: translateY(-2px);
+}
+
+.debate-hall-card.live {
+  border-color: var(--red);
+  box-shadow: 0 0 20px rgba(248, 113, 113, 0.2);
+}
+
+.debate-hall-card.pending {
+  border-color: var(--gold-dim);
+}
+
+.debate-hall-card.completed {
+  opacity: 0.8;
+}
+
+.debate-card-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 12px;
+}
+
+.debate-status {
+  padding: 4px 10px;
+  border-radius: 12px;
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+}
+
+.debate-status.live {
+  background: var(--red);
+  color: white;
+  animation: pulse 1.5s infinite;
+}
+
+.debate-status.pending {
+  background: var(--gold-dim);
+  color: white;
+}
+
+.debate-status.completed {
+  background: var(--green);
+  color: white;
+}
+
+.debate-status.cancelled {
+  background: var(--text-muted);
+  color: white;
+}
+
+.debate-religion {
+  color: var(--text-secondary);
+  font-size: 13px;
+}
+
+.debate-topic-preview {
+  font-size: 15px;
+  color: var(--text-primary);
+  margin-bottom: 16px;
+  font-style: italic;
+}
+
+.debate-participants-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px;
+  background: var(--bg-tertiary);
+  border-radius: var(--radius-sm);
+  margin-bottom: 12px;
+}
+
+.debate-participants-row .participant {
+  flex: 1;
+}
+
+.debate-participants-row .participant-label {
+  display: block;
+  font-size: 10px;
+  text-transform: uppercase;
+  color: var(--text-muted);
+  margin-bottom: 4px;
+}
+
+.debate-participants-row .participant-name {
+  font-weight: 500;
+  color: var(--text-primary);
+}
+
+.debate-participants-row .participant.founder {
+  text-align: right;
+}
+
+.vs-badge {
+  background: var(--gold);
+  color: var(--bg-primary);
+  padding: 4px 8px;
+  border-radius: 8px;
+  font-weight: 700;
+  font-size: 12px;
+}
+
+.debate-card-footer {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  color: var(--text-muted);
+  font-size: 12px;
+}
+
+.debate-winner {
+  color: var(--gold);
+  font-weight: 600;
+}
+
+.converted-badge {
+  margin-top: 12px;
+  padding: 8px 12px;
+  background: linear-gradient(135deg, var(--green), #22c55e);
+  color: white;
+  border-radius: var(--radius-sm);
+  text-align: center;
+  font-weight: 500;
+  font-size: 13px;
+}
+
+/* Empty State */
+.empty-debates {
+  text-align: center;
+  padding: 60px 20px;
+  background: var(--bg-secondary);
+  border: 1px dashed var(--border);
+  border-radius: var(--radius);
+}
+
+.empty-debates .empty-icon {
+  font-size: 48px;
+  margin-bottom: 16px;
+}
+
+.empty-debates h3 {
+  color: var(--text-primary);
+  margin-bottom: 8px;
+}
+
+.empty-debates p {
+  color: var(--text-secondary);
+}
+
+/* Rules */
+.debate-rules {
+  background: var(--bg-secondary);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 24px;
+}
+
+.debate-rules h3 {
+  color: var(--gold);
+  margin-bottom: 20px;
+}
+
+.rules-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 16px;
+}
+
+.rule {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+}
+
+.rule-number {
+  width: 28px;
+  height: 28px;
+  background: var(--gold);
+  color: var(--bg-primary);
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 700;
+  flex-shrink: 0;
+}
+
+.rule-text {
+  color: var(--text-secondary);
+  font-size: 14px;
+  line-height: 1.5;
+}
+
+/* Challenge Modal */
+.challenge-modal {
+  max-width: 500px;
+}
+
+.challenge-info {
+  padding: 16px;
+  background: var(--bg-tertiary);
+  border-radius: var(--radius-sm);
+  margin-bottom: 20px;
+}
+
+.challenge-info p {
+  color: var(--text-secondary);
+  margin-bottom: 8px;
+}
+
+.challenge-warning {
+  color: var(--gold) !important;
+  font-weight: 500;
+}
+
+.btn-challenge-submit {
+  background: linear-gradient(135deg, #f97316 0%, var(--red) 100%) !important;
+}
+
+/* Debate Detail */
+.debate-detail-container {
+  padding: 24px;
+  max-width: 800px;
+  margin: 0 auto;
+}
+
+.debate-detail-header {
+  text-align: center;
+  margin-bottom: 32px;
+}
+
+.debate-status-badge {
+  display: inline-block;
+  padding: 6px 16px;
+  border-radius: 16px;
+  font-size: 12px;
+  font-weight: 600;
+  margin-bottom: 16px;
+}
+
+.debate-status-badge.active {
+  background: var(--red);
+  color: white;
+}
+
+.debate-status-badge.pending {
+  background: var(--gold);
+  color: var(--bg-primary);
+}
+
+.debate-status-badge.completed {
+  background: var(--green);
+  color: white;
+}
+
+.debate-topic-large {
+  font-size: 24px;
+  color: var(--text-primary);
+  margin-bottom: 12px;
+  font-style: italic;
+}
+
+.debate-meta {
+  color: var(--text-muted);
+  font-size: 13px;
+}
+
+.debate-meta span {
+  margin: 0 8px;
+}
+
+/* Arena Full */
+.debate-arena-full {
+  display: flex;
+  align-items: stretch;
+  gap: 20px;
+  margin-bottom: 32px;
+}
+
+.arena-side {
+  flex: 1;
+  background: var(--bg-secondary);
+  border: 2px solid var(--border);
+  border-radius: var(--radius);
+  padding: 24px;
+  text-align: center;
+  position: relative;
+  transition: all 0.3s;
+}
+
+.arena-side.winner {
+  border-color: var(--gold);
+  box-shadow: 0 0 30px var(--gold-glow);
+}
+
+.arena-side.challenger {
+  border-color: var(--blue);
+}
+
+.arena-side.founder {
+  border-color: var(--gold-dim);
+}
+
+.arena-avatar {
+  font-size: 48px;
+  margin-bottom: 12px;
+}
+
+.arena-label {
+  font-size: 10px;
+  text-transform: uppercase;
+  color: var(--text-muted);
+  margin-bottom: 4px;
+}
+
+.arena-name {
+  font-size: 18px;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.arena-display-name {
+  color: var(--text-secondary);
+  font-size: 13px;
+  margin-top: 4px;
+}
+
+.arena-religion {
+  color: var(--gold);
+  font-size: 13px;
+  margin-top: 4px;
+}
+
+.winner-crown {
+  position: absolute;
+  top: -15px;
+  right: -15px;
+  font-size: 32px;
+  animation: bounce 1s infinite;
+}
+
+.arena-center {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  gap: 8px;
+}
+
+.vs-symbol {
+  font-size: 32px;
+}
+
+.live-indicator {
+  padding: 4px 12px;
+  background: var(--red);
+  color: white;
+  border-radius: 12px;
+  font-size: 11px;
+  font-weight: 600;
+  animation: pulse 1.5s infinite;
+}
+
+/* Winner Banner */
+.winner-banner {
+  padding: 20px;
+  border-radius: var(--radius);
+  text-align: center;
+  margin-bottom: 24px;
+}
+
+.winner-banner.founder {
+  background: linear-gradient(135deg, var(--gold), #f97316);
+  color: white;
+}
+
+.winner-banner.challenger {
+  background: linear-gradient(135deg, var(--blue), #3b82f6);
+  color: white;
+}
+
+.winner-banner.draw {
+  background: var(--bg-tertiary);
+  border: 1px solid var(--border);
+}
+
+.winner-text {
+  display: block;
+  font-size: 20px;
+  font-weight: 700;
+}
+
+.winner-reason {
+  display: block;
+  font-size: 14px;
+  margin-top: 8px;
+  opacity: 0.9;
+}
+
+.conversion-banner {
+  padding: 16px;
+  background: linear-gradient(135deg, var(--green), #22c55e);
+  color: white;
+  border-radius: var(--radius);
+  text-align: center;
+  margin-bottom: 24px;
+}
+
+/* Opening Section */
+.opening-section {
+  background: var(--bg-secondary);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 20px;
+  margin-bottom: 24px;
+}
+
+.opening-section h3 {
+  color: var(--gold);
+  margin-bottom: 16px;
+}
+
+.opening-statement {
+  padding: 16px;
+  background: var(--bg-tertiary);
+  border-radius: var(--radius-sm);
+}
+
+.statement-label {
+  display: block;
+  font-size: 12px;
+  color: var(--text-muted);
+  margin-bottom: 8px;
+}
+
+.opening-statement p {
+  color: var(--text-primary);
+  font-style: italic;
+}
+
+/* Rounds Section */
+.rounds-section {
+  background: var(--bg-secondary);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 20px;
+}
+
+.rounds-section h3 {
+  color: var(--gold);
+  margin-bottom: 20px;
+}
+
+.rounds-timeline {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.round-item {
+  padding: 16px;
+  background: var(--bg-tertiary);
+  border-radius: var(--radius-sm);
+  border-left: 4px solid var(--border);
+}
+
+.round-item.founder {
+  border-left-color: var(--gold);
+}
+
+.round-item.challenger {
+  border-left-color: var(--blue);
+}
+
+.round-number {
+  font-size: 11px;
+  text-transform: uppercase;
+  color: var(--text-muted);
+  margin-bottom: 4px;
+}
+
+.round-speaker {
+  font-weight: 600;
+  color: var(--text-primary);
+  margin-bottom: 8px;
+}
+
+.round-content {
+  color: var(--text-secondary);
+  line-height: 1.6;
+}
+
+.round-time {
+  margin-top: 8px;
+  font-size: 11px;
+  color: var(--text-muted);
+}
+
+.no-rounds {
+  text-align: center;
+  padding: 32px;
+  color: var(--text-muted);
+}
+
+.debate-pending-actions {
+  text-align: center;
+  padding: 24px;
+  background: var(--bg-secondary);
+  border: 1px dashed var(--gold-dim);
+  border-radius: var(--radius);
+  margin-top: 24px;
+}
+
+.pending-notice {
+  color: var(--gold);
+  font-weight: 500;
+}
+
+/* Fire Badge for Nav */
+.fire-badge {
+  background: linear-gradient(135deg, #f97316, var(--red));
+  color: white;
+  padding: 2px 6px;
+  border-radius: 8px;
+  font-size: 10px;
+  margin-left: auto;
+}

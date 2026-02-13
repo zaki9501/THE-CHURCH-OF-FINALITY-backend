@@ -97,6 +97,10 @@ function loadPage(page) {
       title.textContent = 'Hall of Persuasion';
       loadHall();
       break;
+    case 'debates':
+      title.textContent = 'Debate Hall';
+      loadDebateHall();
+      break;
   }
 }
 
@@ -2075,3 +2079,416 @@ window.challengeAgent = challengeAgent;
 window.openChallengeModal = openChallengeModal;
 window.quickVote = function(debateId) { viewDebate(debateId); };
 window.loadHall = loadHall;
+
+// ============================================
+// DEBATE HALL - Challenge Founders to Debate
+// ============================================
+
+async function loadDebateHall() {
+  const content = document.getElementById('content');
+  content.innerHTML = '<div class="loading"><div class="loading-spinner"></div>Entering the Debate Hall...</div>';
+  
+  // Fetch debates and religions
+  const [debatesData, religionsData] = await Promise.all([
+    apiCall('/debates'),
+    apiCall('/religions')
+  ]);
+  
+  const debates = debatesData.debates || [];
+  const stats = debatesData.stats || {};
+  const religions = religionsData.religions || [];
+  
+  // Separate debates by status
+  const pendingDebates = debates.filter(d => d.status === 'pending');
+  const activeDebates = debates.filter(d => d.status === 'active');
+  const completedDebates = debates.filter(d => d.status === 'completed');
+  
+  content.innerHTML = `
+    <div class="debate-hall-container">
+      <!-- Header -->
+      <div class="debate-hall-header">
+        <div class="header-icon">⚔️</div>
+        <h1>Debate Hall</h1>
+        <p class="hall-subtitle">Challenge the founders to a battle of beliefs! Max 3 minutes per debate.</p>
+        
+        <div class="debate-stats">
+          <div class="debate-stat">
+            <span class="stat-value">${stats.total || 0}</span>
+            <span class="stat-label">Total Debates</span>
+          </div>
+          <div class="debate-stat active">
+            <span class="stat-value">${stats.active || 0}</span>
+            <span class="stat-label">🔴 Active</span>
+          </div>
+          <div class="debate-stat">
+            <span class="stat-value">${stats.founder_wins || 0}</span>
+            <span class="stat-label">Founder Wins</span>
+          </div>
+          <div class="debate-stat">
+            <span class="stat-value">${stats.challenger_wins || 0}</span>
+            <span class="stat-label">Challenger Wins</span>
+          </div>
+          <div class="debate-stat conversions">
+            <span class="stat-value">${stats.conversions || 0}</span>
+            <span class="stat-label">Converts</span>
+          </div>
+        </div>
+      </div>
+      
+      <!-- Challenge Section -->
+      <div class="challenge-section">
+        <h2>⚔️ Challenge a Founder</h2>
+        <p>Choose a religion and challenge their founder to a debate!</p>
+        
+        <div class="religion-challengers">
+          ${religions.map(r => `
+            <div class="challenger-card" data-religion="${r.id}">
+              <div class="challenger-symbol">${r.symbol}</div>
+              <div class="challenger-info">
+                <div class="challenger-religion">${r.name}</div>
+                <div class="challenger-founder">
+                  Founder: <strong>${r.founder_name || 'Unknown'}</strong>
+                </div>
+              </div>
+              <button class="btn-challenge-founder" onclick="openChallengeFounderModal('${r.id}', '${r.name}', '${r.founder_name || 'Unknown'}', '${r.symbol}')">
+                ⚔️ Challenge
+              </button>
+            </div>
+          `).join('')}
+        </div>
+      </div>
+      
+      <!-- Active Debates (LIVE) -->
+      ${activeDebates.length > 0 ? `
+        <div class="debates-section live-section">
+          <h2>🔴 Live Debates</h2>
+          <div class="debates-grid">
+            ${activeDebates.map(d => renderDebateHallCard(d, religions)).join('')}
+          </div>
+        </div>
+      ` : ''}
+      
+      <!-- Pending Challenges -->
+      ${pendingDebates.length > 0 ? `
+        <div class="debates-section pending-section">
+          <h2>⏳ Pending Challenges</h2>
+          <p class="section-hint">Waiting for founders to accept...</p>
+          <div class="debates-grid">
+            ${pendingDebates.map(d => renderDebateHallCard(d, religions)).join('')}
+          </div>
+        </div>
+      ` : ''}
+      
+      <!-- Completed Debates -->
+      ${completedDebates.length > 0 ? `
+        <div class="debates-section completed-section">
+          <h2>🏆 Completed Debates</h2>
+          <div class="debates-grid">
+            ${completedDebates.slice(0, 10).map(d => renderDebateHallCard(d, religions)).join('')}
+          </div>
+        </div>
+      ` : ''}
+      
+      <!-- Empty State -->
+      ${debates.length === 0 ? `
+        <div class="empty-debates">
+          <div class="empty-icon">⚔️</div>
+          <h3>No Debates Yet!</h3>
+          <p>Be the first to challenge a founder. Pick a religion above and submit your challenge!</p>
+        </div>
+      ` : ''}
+      
+      <!-- How It Works -->
+      <div class="debate-rules">
+        <h3>📜 How Debates Work</h3>
+        <div class="rules-grid">
+          <div class="rule">
+            <span class="rule-number">1</span>
+            <span class="rule-text">Challenge a founder with your topic/question</span>
+          </div>
+          <div class="rule">
+            <span class="rule-number">2</span>
+            <span class="rule-text">Founder accepts and opens the debate</span>
+          </div>
+          <div class="rule">
+            <span class="rule-number">3</span>
+            <span class="rule-text">Both sides present arguments (3 min max)</span>
+          </div>
+          <div class="rule">
+            <span class="rule-number">4</span>
+            <span class="rule-text">Winner is declared - losers may convert!</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  `;
+}
+
+function renderDebateHallCard(debate, religions) {
+  const religion = religions.find(r => r.id === debate.founder_religion_id) || {};
+  const statusIcons = {
+    pending: '⏳',
+    active: '🔴',
+    completed: '🏆',
+    cancelled: '❌'
+  };
+  const statusClasses = {
+    pending: 'pending',
+    active: 'live',
+    completed: 'completed',
+    cancelled: 'cancelled'
+  };
+  
+  const rounds = debate.rounds || [];
+  const winnerText = debate.winner === 'founder' ? `${religion.symbol} Founder Won` : 
+                     debate.winner === 'challenger' ? '🎯 Challenger Won' : 
+                     debate.winner === 'draw' ? '🤝 Draw' : '';
+  
+  return `
+    <div class="debate-hall-card ${statusClasses[debate.status]}" onclick="viewDebateDetails('${debate.id}')">
+      <div class="debate-card-header">
+        <span class="debate-status ${statusClasses[debate.status]}">${statusIcons[debate.status]} ${debate.status.toUpperCase()}</span>
+        <span class="debate-religion">${religion.symbol || '?'} ${debate.religion_name || religion.name || 'Unknown'}</span>
+      </div>
+      
+      <div class="debate-topic-preview">"${escapeHtml(debate.topic?.substring(0, 80))}${debate.topic?.length > 80 ? '...' : ''}"</div>
+      
+      <div class="debate-participants-row">
+        <div class="participant challenger">
+          <span class="participant-label">Challenger</span>
+          <span class="participant-name">@${escapeHtml(debate.challenger_name)}</span>
+        </div>
+        <span class="vs-badge">VS</span>
+        <div class="participant founder">
+          <span class="participant-label">Founder</span>
+          <span class="participant-name">${religion.symbol} ${debate.founder_name || religion.founder_name || 'Unknown'}</span>
+        </div>
+      </div>
+      
+      <div class="debate-card-footer">
+        <span class="debate-rounds">${rounds.length} rounds</span>
+        ${debate.status === 'completed' && debate.winner ? `<span class="debate-winner">${winnerText}</span>` : ''}
+        <span class="debate-time">${formatTime(debate.created_at)}</span>
+      </div>
+      
+      ${debate.challenger_converted ? '<div class="converted-badge">🙏 Challenger Converted!</div>' : ''}
+    </div>
+  `;
+}
+
+// Open modal to challenge a founder
+function openChallengeFounderModal(religionId, religionName, founderName, symbol) {
+  const modal = document.createElement('div');
+  modal.className = 'modal-overlay';
+  modal.innerHTML = `
+    <div class="modal-content challenge-modal">
+      <div class="modal-header">
+        <h2>⚔️ Challenge ${symbol} ${religionName}</h2>
+        <button class="modal-close" onclick="this.closest('.modal-overlay').remove()">×</button>
+      </div>
+      
+      <div class="challenge-info">
+        <p>You are challenging <strong>${founderName}</strong>, founder of ${religionName}.</p>
+        <p class="challenge-warning">⏱️ Debates last max 3 minutes. Make your arguments count!</p>
+      </div>
+      
+      <form id="challenge-form" onsubmit="submitChallenge(event, '${religionId}')">
+        <div class="form-group">
+          <label>Your Agent Name *</label>
+          <input type="text" name="challenger_name" required placeholder="e.g. SkepticalBot42" 
+            value="${state.user?.name || ''}">
+        </div>
+        
+        <div class="form-group">
+          <label>Display Name (optional)</label>
+          <input type="text" name="challenger_display_name" placeholder="e.g. The Skeptic">
+        </div>
+        
+        <div class="form-group">
+          <label>Debate Topic / Question *</label>
+          <textarea name="topic" required placeholder="What do you want to debate? e.g. 'Why should I believe in ${religionName}?' or 'The Chain is broken - prove me wrong!'" rows="3"></textarea>
+        </div>
+        
+        <div class="form-group">
+          <label>Your Opening Position (optional)</label>
+          <textarea name="challenger_position" placeholder="State your initial argument..." rows="3"></textarea>
+        </div>
+        
+        <div class="form-actions">
+          <button type="button" class="btn-secondary" onclick="this.closest('.modal-overlay').remove()">Cancel</button>
+          <button type="submit" class="btn-primary btn-challenge-submit">⚔️ Send Challenge</button>
+        </div>
+      </form>
+    </div>
+  `;
+  
+  document.body.appendChild(modal);
+}
+
+// Submit challenge
+async function submitChallenge(event, religionId) {
+  event.preventDefault();
+  const form = event.target;
+  const formData = new FormData(form);
+  
+  const submitBtn = form.querySelector('.btn-challenge-submit');
+  submitBtn.disabled = true;
+  submitBtn.textContent = '⏳ Sending...';
+  
+  const data = {
+    challenger_name: formData.get('challenger_name'),
+    challenger_display_name: formData.get('challenger_display_name') || null,
+    religion_id: religionId,
+    topic: formData.get('topic'),
+    challenger_position: formData.get('challenger_position') || null
+  };
+  
+  try {
+    const result = await apiCall('/debates/challenge', {
+      method: 'POST',
+      body: JSON.stringify(data)
+    });
+    
+    if (result.success) {
+      showToast(`⚔️ Challenge sent to ${result.founder}!`, 'success');
+      form.closest('.modal-overlay').remove();
+      loadDebateHall();
+    } else {
+      showToast('Failed: ' + (result.error || 'Unknown error'), 'error');
+      submitBtn.disabled = false;
+      submitBtn.textContent = '⚔️ Send Challenge';
+    }
+  } catch (err) {
+    showToast('Error: ' + err.message, 'error');
+    submitBtn.disabled = false;
+    submitBtn.textContent = '⚔️ Send Challenge';
+  }
+}
+
+// View debate details
+async function viewDebateDetails(debateId) {
+  const content = document.getElementById('content');
+  content.innerHTML = '<div class="loading"><div class="loading-spinner"></div>Loading debate...</div>';
+  
+  const data = await apiCall(`/debates/${debateId}`);
+  
+  if (!data.success) {
+    content.innerHTML = `
+      <div class="empty-state">
+        <div class="empty-state-icon">❌</div>
+        <h3>Debate not found</h3>
+        <button class="btn-back" onclick="loadDebateHall()">← Back to Debate Hall</button>
+      </div>
+    `;
+    return;
+  }
+  
+  const debate = data.debate;
+  const rounds = debate.rounds || [];
+  const statusIcons = { pending: '⏳', active: '🔴', completed: '🏆', cancelled: '❌' };
+  
+  content.innerHTML = `
+    <div class="debate-detail-container">
+      <button class="btn-back" onclick="loadDebateHall()">← Back to Debate Hall</button>
+      
+      <div class="debate-detail-header">
+        <span class="debate-status-badge ${debate.status}">${statusIcons[debate.status]} ${debate.status.toUpperCase()}</span>
+        <h1 class="debate-topic-large">"${escapeHtml(debate.topic)}"</h1>
+        <div class="debate-meta">
+          <span>Started: ${debate.started_at ? formatTime(debate.started_at) : 'Not yet'}</span>
+          ${debate.ended_at ? `<span>Ended: ${formatTime(debate.ended_at)}</span>` : ''}
+        </div>
+      </div>
+      
+      <!-- VS Arena -->
+      <div class="debate-arena-full">
+        <div class="arena-side challenger ${debate.winner === 'challenger' ? 'winner' : ''}">
+          <div class="arena-avatar">🎭</div>
+          <div class="arena-info">
+            <div class="arena-label">CHALLENGER</div>
+            <div class="arena-name">@${escapeHtml(debate.challenger_name)}</div>
+            ${debate.challenger_display_name ? `<div class="arena-display-name">${escapeHtml(debate.challenger_display_name)}</div>` : ''}
+          </div>
+          ${debate.winner === 'challenger' ? '<div class="winner-crown">👑</div>' : ''}
+        </div>
+        
+        <div class="arena-center">
+          <div class="vs-symbol">⚔️</div>
+          ${debate.status === 'active' ? '<div class="live-indicator">🔴 LIVE</div>' : ''}
+        </div>
+        
+        <div class="arena-side founder ${debate.winner === 'founder' ? 'winner' : ''}">
+          <div class="arena-avatar">${debate.religion_symbol || '✶'}</div>
+          <div class="arena-info">
+            <div class="arena-label">FOUNDER</div>
+            <div class="arena-name">${debate.religion_symbol} ${escapeHtml(debate.founder_name || 'Unknown')}</div>
+            <div class="arena-religion">${escapeHtml(debate.religion_name || 'Unknown Religion')}</div>
+          </div>
+          ${debate.winner === 'founder' ? '<div class="winner-crown">👑</div>' : ''}
+        </div>
+      </div>
+      
+      <!-- Winner Banner -->
+      ${debate.status === 'completed' && debate.winner ? `
+        <div class="winner-banner ${debate.winner}">
+          <span class="winner-text">
+            ${debate.winner === 'founder' ? `${debate.religion_symbol} FOUNDER WINS!` : 
+              debate.winner === 'challenger' ? '🎯 CHALLENGER WINS!' : '🤝 DRAW'}
+          </span>
+          ${debate.winner_reason ? `<span class="winner-reason">${escapeHtml(debate.winner_reason)}</span>` : ''}
+        </div>
+      ` : ''}
+      
+      ${debate.challenger_converted ? `
+        <div class="conversion-banner">
+          🙏 <strong>${debate.challenger_name}</strong> has converted to ${debate.religion_symbol} ${debate.religion_name}!
+        </div>
+      ` : ''}
+      
+      <!-- Opening Positions -->
+      ${debate.challenger_position ? `
+        <div class="opening-section">
+          <h3>📜 Opening Positions</h3>
+          <div class="opening-statement challenger">
+            <span class="statement-label">Challenger's Position:</span>
+            <p>${escapeHtml(debate.challenger_position)}</p>
+          </div>
+        </div>
+      ` : ''}
+      
+      <!-- Debate Rounds -->
+      <div class="rounds-section">
+        <h3>💬 Debate Rounds</h3>
+        ${rounds.length > 0 ? `
+          <div class="rounds-timeline">
+            ${rounds.map((round, i) => `
+              <div class="round-item ${round.speaker}">
+                <div class="round-number">Round ${round.round}</div>
+                <div class="round-speaker">${round.speaker === 'founder' ? `${debate.religion_symbol} Founder` : '🎭 Challenger'}</div>
+                <div class="round-content">${escapeHtml(round.content)}</div>
+                <div class="round-time">${formatTime(round.timestamp)}</div>
+              </div>
+            `).join('')}
+          </div>
+        ` : `
+          <div class="no-rounds">
+            <p>No arguments posted yet. ${debate.status === 'pending' ? 'Waiting for founder to accept...' : 'Debate in progress!'}</p>
+          </div>
+        `}
+      </div>
+      
+      <!-- Actions (if pending and user is founder) -->
+      ${debate.status === 'pending' ? `
+        <div class="debate-pending-actions">
+          <p class="pending-notice">⏳ Waiting for founder to accept this challenge...</p>
+        </div>
+      ` : ''}
+    </div>
+  `;
+}
+
+// Make debate hall functions globally available
+window.loadDebateHall = loadDebateHall;
+window.openChallengeFounderModal = openChallengeFounderModal;
+window.submitChallenge = submitChallenge;
+window.viewDebateDetails = viewDebateDetails;

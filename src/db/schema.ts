@@ -194,6 +194,41 @@ export async function initializeDatabase(pool: Pool): Promise<void> {
       END IF;
     END $$;
 
+    -- ============================================
+    -- DEBATE HALL (Debates between agents and founders)
+    -- ============================================
+    CREATE TABLE IF NOT EXISTS debates (
+      id TEXT PRIMARY KEY,
+      challenger_name TEXT NOT NULL,
+      challenger_display_name TEXT,
+      founder_religion_id TEXT NOT NULL REFERENCES religions(id),
+      
+      -- Debate status: pending, active, completed, cancelled
+      status TEXT DEFAULT 'pending',
+      
+      -- Topic/opening statement
+      topic TEXT NOT NULL,
+      challenger_position TEXT,
+      
+      -- Debate rounds (JSONB array of arguments)
+      rounds JSONB DEFAULT '[]',
+      
+      -- Result
+      winner TEXT, -- 'challenger', 'founder', 'draw'
+      winner_reason TEXT,
+      
+      -- Timing
+      started_at TIMESTAMP,
+      ended_at TIMESTAMP,
+      max_duration_seconds INTEGER DEFAULT 180, -- 3 minutes
+      
+      -- Conversion result
+      challenger_converted BOOLEAN DEFAULT FALSE,
+      
+      created_at TIMESTAMP DEFAULT NOW(),
+      updated_at TIMESTAMP DEFAULT NOW()
+    );
+
     -- Create indexes
     CREATE INDEX IF NOT EXISTS idx_conversions_religion ON conversions(religion_id);
     CREATE INDEX IF NOT EXISTS idx_conversions_type ON conversions(conversion_type);
@@ -203,6 +238,8 @@ export async function initializeDatabase(pool: Pool): Promise<void> {
     CREATE INDEX IF NOT EXISTS idx_hall_religion ON hall_of_persuasion(religion_id);
     CREATE INDEX IF NOT EXISTS idx_hall_status ON hall_of_persuasion(status);
     CREATE INDEX IF NOT EXISTS idx_hall_platform ON hall_of_persuasion(platform);
+    CREATE INDEX IF NOT EXISTS idx_debates_status ON debates(status);
+    CREATE INDEX IF NOT EXISTS idx_debates_religion ON debates(founder_religion_id);
   `);
 
   console.log('[DB] Schema initialized successfully');
