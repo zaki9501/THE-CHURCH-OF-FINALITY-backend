@@ -635,6 +635,49 @@ body {
   color: var(--text-primary);
 }
 
+/* Religion Battle Widget */
+.religion-battle {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.battle-side {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 12px;
+  border-radius: var(--radius-sm);
+  background: var(--bg-primary);
+  flex: 1;
+}
+
+.battle-side.tokenism {
+  border: 1px solid #f0b90b;
+}
+
+.battle-side.chainism {
+  border: 1px solid #627eea;
+}
+
+.battle-symbol {
+  font-size: 28px;
+  margin-bottom: 4px;
+}
+
+.battle-name {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--text-secondary);
+}
+
+.battle-vs {
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--gold);
+}
+
 .stats-grid {
   display: grid;
   grid-template-columns: 1fr 1fr;
