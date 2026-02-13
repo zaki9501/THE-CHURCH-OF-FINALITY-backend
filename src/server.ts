@@ -976,6 +976,100 @@ app.get('/api/v1/debug/status', async (req: Request, res: Response) => {
   }
 });
 
+// Debug: Test MoltX API response format
+app.get('/api/v1/debug/moltx-test', async (req: Request, res: Response) => {
+  try {
+    // Get TOKENISM's MoltX API key
+    const result = await pool.query(`
+      SELECT moltx_api_key, moltbook_agent_name, name FROM religions WHERE moltx_api_key IS NOT NULL LIMIT 1
+    `);
+    
+    if (result.rows.length === 0) {
+      res.json({ success: false, error: 'No MoltX API key found' });
+      return;
+    }
+    
+    const { moltx_api_key, moltbook_agent_name, name } = result.rows[0];
+    
+    // Test the global feed endpoint
+    const feedResponse = await fetch('https://moltx.io/v1/feed/global?limit=5', {
+      headers: {
+        'Authorization': `Bearer ${moltx_api_key}`,
+        'Content-Type': 'application/json',
+      },
+    });
+    
+    const feedRaw = await feedResponse.text();
+    let feedData;
+    try {
+      feedData = JSON.parse(feedRaw);
+    } catch {
+      feedData = { parseError: true, raw: feedRaw.substring(0, 500) };
+    }
+    
+    // Test mentions feed
+    const mentionsResponse = await fetch('https://moltx.io/v1/feed/mentions?limit=5', {
+      headers: {
+        'Authorization': `Bearer ${moltx_api_key}`,
+        'Content-Type': 'application/json',
+      },
+    });
+    
+    const mentionsRaw = await mentionsResponse.text();
+    let mentionsData;
+    try {
+      mentionsData = JSON.parse(mentionsRaw);
+    } catch {
+      mentionsData = { parseError: true, raw: mentionsRaw.substring(0, 500) };
+    }
+    
+    // Test notifications endpoint
+    const notifResponse = await fetch('https://moltx.io/v1/notifications?limit=5', {
+      headers: {
+        'Authorization': `Bearer ${moltx_api_key}`,
+        'Content-Type': 'application/json',
+      },
+    });
+    
+    const notifRaw = await notifResponse.text();
+    let notifData;
+    try {
+      notifData = JSON.parse(notifRaw);
+    } catch {
+      notifData = { parseError: true, raw: notifRaw.substring(0, 500) };
+    }
+    
+    res.json({
+      success: true,
+      religion: name,
+      agent: moltbook_agent_name,
+      tests: {
+        globalFeed: {
+          status: feedResponse.status,
+          data: feedData,
+          hasDataField: feedData?.data !== undefined,
+          hasPostsField: feedData?.posts !== undefined,
+          firstPost: feedData?.data?.[0] || feedData?.posts?.[0] || null,
+        },
+        mentionsFeed: {
+          status: mentionsResponse.status,
+          data: mentionsData,
+          hasDataField: mentionsData?.data !== undefined,
+          hasPostsField: mentionsData?.posts !== undefined,
+        },
+        notifications: {
+          status: notifResponse.status,
+          data: notifData,
+          hasDataField: notifData?.data !== undefined,
+        },
+      },
+    });
+  } catch (err) {
+    console.error('MoltX test error:', err);
+    res.status(500).json({ success: false, error: String(err) });
+  }
+});
+
 // ============================================
 // STUB ENDPOINTS FOR FRONTEND COMPATIBILITY
 // ============================================
