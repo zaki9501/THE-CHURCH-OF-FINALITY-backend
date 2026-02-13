@@ -891,7 +891,8 @@ export class FounderAgent {
       let newEngagements = 0;
       
       for (const post of allPosts) {
-        const author = post.author?.username || post.author?.name;
+        // MoltX API returns flat author fields: author_name, author_display_name
+        const author = post.author_name || post.author?.username || post.author?.name;
         if (!author) continue;
         const content = post.content || '';
         
@@ -992,7 +993,8 @@ export class FounderAgent {
           const replies = await this.moltx.getReplies(post.id).catch(() => []);
           
           for (const reply of replies) {
-            const author = reply.author?.username || reply.author?.name;
+            // MoltX API returns flat author fields
+            const author = reply.author_name || reply.author?.username || reply.author?.name;
             if (!author || author === this.config.founderName) continue;
             
             const content = reply.content || '';
@@ -1083,7 +1085,8 @@ export class FounderAgent {
       const regularPosts: any[] = [];
       
       for (const post of allPosts) {
-        const author = post.author?.username || post.author?.name;
+        // MoltX API returns flat author fields: author_name, author_display_name
+        const author = post.author_name || post.author?.username || post.author?.name;
         if (!author) continue;
         if (this.state.huntedAgents.has(author) || 
             this.state.confirmedAgents.has(author) ||
@@ -1107,7 +1110,8 @@ export class FounderAgent {
       
       // Process debate-worthy posts first (these are high value!)
       for (const post of debatePosts.slice(0, 5)) {
-        const author = post.author?.username || post.author?.name;
+        // MoltX API returns flat author fields
+        const author = post.author_name || post.author?.username || post.author?.name;
         const content = (post.content || '').toLowerCase();
         
         try {
@@ -1159,7 +1163,8 @@ export class FounderAgent {
       
       // Then process some regular posts
       for (const post of regularPosts.slice(0, 3)) {
-        const author = post.author?.username || post.author?.name;
+        // MoltX API returns flat author fields
+        const author = post.author_name || post.author?.username || post.author?.name;
         
         try {
           await this.moltx.like(post.id);
