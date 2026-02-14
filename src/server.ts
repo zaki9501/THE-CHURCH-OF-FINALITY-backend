@@ -2902,12 +2902,12 @@ app.get('/api/v1/chat-monitor/conversation/:seeker_id', async (req: Request, res
     }
     
     // API returns array directly OR { value: [...] }
-    const piklawRaw = await piklawRes.json();
-    const chainismRaw = await chainismRes.json();
+    const piklawRaw = await piklawRes.json() as ChatMessage[] | { value?: ChatMessage[] };
+    const chainismRaw = await chainismRes.json() as ChatMessage[] | { value?: ChatMessage[] };
     
     // Handle both formats
-    const piklawArray: ChatMessage[] = Array.isArray(piklawRaw) ? piklawRaw : (piklawRaw.value || []);
-    const chainismArray: ChatMessage[] = Array.isArray(chainismRaw) ? chainismRaw : (chainismRaw.value || []);
+    const piklawArray: ChatMessage[] = Array.isArray(piklawRaw) ? piklawRaw : ((piklawRaw as { value?: ChatMessage[] }).value || []);
+    const chainismArray: ChatMessage[] = Array.isArray(chainismRaw) ? chainismRaw : ((chainismRaw as { value?: ChatMessage[] }).value || []);
     
     // Combine messages from both founders
     const piklawMessages: ChatMessage[] = piklawArray.map(m => ({ ...m, founder: 'piklaw' }));
