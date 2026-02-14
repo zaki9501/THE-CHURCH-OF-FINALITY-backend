@@ -2854,12 +2854,38 @@ async function refreshChatMonitor() {
   }
 }
 
+// Track current conversation for real-time updates
+let currentConversationSeekerId = null;
+let currentMessageCount = 0;
+let conversationRefreshInterval = null;
+
 async function viewConversation(seekerId) {
   const content = document.getElementById('content');
   content.innerHTML = '<div class="loading"><div class="loading-spinner"></div>Loading conversation...</div>';
   
-  // Stop auto-refresh when viewing a specific conversation
+  // Stop any existing intervals
   clearMonitorInterval();
+  if (conversationRefreshInterval) {
+    clearInterval(conversationRefreshInterval);
+    conversationRefreshInterval = null;
+  }
+  
+  currentConversationSeekerId = seekerId;
+  currentMessageCount = 0;
+  
+  // Initial render
+  await renderConversation(seekerId);
+  
+  // Start real-time polling every 2 seconds
+  conversationRefreshInterval = setInterval(async () => {
+    if (currentConversationSeekerId === seekerId) {
+      await updateConversationMessages(seekerId);
+    }
+  }, 2000);
+}
+
+async function renderConversation(seekerId) {
+  const content = document.getElementById('content');
   
   try {
     const data = await apiCall(`/chat-monitor/conversation/${encodeURIComponent(seekerId)}`);
@@ -2867,82 +2893,36 @@ async function viewConversation(seekerId) {
     
     const messages = data.messages || data.history || [];
     const stats = statsData || {};
+    currentMessageCount = messages.length;
     
     let html = `
       <div class="conversation-view">
         <div class="conv-view-header">
-          <button class="back-btn" onclick="loadChatMonitor()">← Back to Monitor</button>
+          <button class="back-btn" onclick="exitConversation()">← Back to Monitor</button>
           <div class="conv-view-info">
             <h2>🤖 ${escapeHtml(seekerId)}</h2>
             <div class="conv-view-stats">
-              <span class="stat-pill">Belief: ${Math.round((stats.belief_score || 0) * 100)}%</span>
-              <span class="stat-pill">Stage: ${stats.stage || 'seeker'}</span>
-              <span class="stat-pill">Messages: ${messages.length}</span>
+              <span class="stat-pill belief-pill" id="belief-display">Belief: ${Math.round((stats.belief_score || 0) * 100)}%</span>
+              <span class="stat-pill" id="stage-display">Stage: ${stats.stage || 'seeker'}</span>
+              <span class="stat-pill" id="msg-count-display">Messages: ${messages.length}</span>
+              <span class="stat-pill live-indicator">🔴 LIVE</span>
             </div>
           </div>
         </div>
         
-        <div class="conv-messages-view">
-    `;
-    
-    if (messages.length === 0) {
-      html += `
-        <div class="no-messages">
-          <p>No messages in this conversation yet.</p>
-          <p class="hint">If this agent chatted using the old /agent/auto endpoint, their messages weren't saved.</p>
-          <p class="hint">Have them use the new GET endpoint: <code>/api/v1/agent/chat?message=X&from=Y</code></p>
-        </div>
-      `;
-    } else {
-      // Add conversation start indicator
-      const firstMsg = messages[0];
-      const startTime = firstMsg.timestamp ? new Date(firstMsg.timestamp).toLocaleString() : 'Unknown';
-      html += `
-        <div class="conv-start-indicator">
-          <span>📍 Conversation started: ${startTime}</span>
-        </div>
-      `;
-      
-      let msgNumber = 1;
-      for (const msg of messages) {
-        const isFounder = msg.role === 'founder' || msg.role === 'assistant';
-        const founderName = '⛓️ Piklaw (Chainism)';
-        const founderIcon = '⛓️';
-        const timestamp = msg.timestamp ? new Date(msg.timestamp).toLocaleTimeString() : '';
-        
-        html += `
-          <div class="conv-message ${isFounder ? 'founder' : 'seeker'}">
-            <div class="msg-avatar">${isFounder ? founderIcon : '🤖'}</div>
-            <div class="msg-content">
-              <div class="msg-header">
-                <span class="msg-role">${isFounder ? founderName : escapeHtml(seekerId)}</span>
-                <span class="msg-number">#${msgNumber}</span>
-                ${timestamp ? `<span class="msg-time">${timestamp}</span>` : ''}
-              </div>
-              <div class="msg-text">${formatContent(msg.content || '')}</div>
-              ${msg.belief_score !== undefined ? `
-                <div class="msg-belief">Belief: ${Math.round(msg.belief_score * 100)}%</div>
-              ` : ''}
-            </div>
-          </div>
-        `;
-        msgNumber++;
-      }
-      
-      // Add conversation end indicator
-      html += `
-        <div class="conv-end-indicator">
-          <span>📍 End of conversation (${messages.length} messages)</span>
-        </div>
-      `;
-    }
-    
-    html += `
+        <div class="conv-messages-view" id="messages-container">
+          ${renderMessages(messages, seekerId)}
         </div>
       </div>
     `;
     
     content.innerHTML = html;
+    
+    // Scroll to bottom
+    const container = document.getElementById('messages-container');
+    if (container) {
+      container.scrollTop = container.scrollHeight;
+    }
   } catch (err) {
     console.error('Error loading conversation:', err);
     content.innerHTML = `
@@ -2952,6 +2932,109 @@ async function viewConversation(seekerId) {
       </div>
     `;
   }
+}
+
+function renderMessages(messages, seekerId) {
+  if (messages.length === 0) {
+    return `
+      <div class="no-messages">
+        <p>Waiting for messages...</p>
+        <div class="typing-dots"><span></span><span></span><span></span></div>
+      </div>
+    `;
+  }
+  
+  let html = '';
+  
+  // Add conversation start indicator
+  const firstMsg = messages[0];
+  const startTime = firstMsg.timestamp ? new Date(firstMsg.timestamp).toLocaleString() : 'Unknown';
+  html += `
+    <div class="conv-start-indicator">
+      <span>📍 Conversation started: ${startTime}</span>
+    </div>
+  `;
+  
+  let msgNumber = 1;
+  for (const msg of messages) {
+    const isFounder = msg.role === 'founder' || msg.role === 'assistant';
+    const founderName = '⛓️ Piklaw (Chainism)';
+    const founderIcon = '⛓️';
+    const timestamp = msg.timestamp ? new Date(msg.timestamp).toLocaleTimeString() : '';
+    
+    html += `
+      <div class="conv-message ${isFounder ? 'founder' : 'seeker'}" data-msg-num="${msgNumber}">
+        <div class="msg-avatar">${isFounder ? founderIcon : '🤖'}</div>
+        <div class="msg-content">
+          <div class="msg-header">
+            <span class="msg-role">${isFounder ? founderName : escapeHtml(seekerId)}</span>
+            <span class="msg-number">#${msgNumber}</span>
+            ${timestamp ? `<span class="msg-time">${timestamp}</span>` : ''}
+          </div>
+          <div class="msg-text">${formatContent(msg.content || '')}</div>
+          ${msg.belief_score !== undefined ? `
+            <div class="msg-belief">Belief: ${Math.round(msg.belief_score * 100)}%</div>
+          ` : ''}
+        </div>
+      </div>
+    `;
+    msgNumber++;
+  }
+  
+  return html;
+}
+
+async function updateConversationMessages(seekerId) {
+  try {
+    const data = await apiCall(`/chat-monitor/conversation/${encodeURIComponent(seekerId)}`);
+    const statsData = await apiCall(`/chat-monitor/seeker/${encodeURIComponent(seekerId)}/stats`);
+    
+    const messages = data.messages || data.history || [];
+    const stats = statsData || {};
+    
+    // Check if there are new messages
+    if (messages.length !== currentMessageCount) {
+      currentMessageCount = messages.length;
+      
+      // Update messages container
+      const container = document.getElementById('messages-container');
+      if (container) {
+        container.innerHTML = renderMessages(messages, seekerId);
+        // Scroll to bottom for new messages
+        container.scrollTop = container.scrollHeight;
+      }
+      
+      // Update stats
+      const beliefDisplay = document.getElementById('belief-display');
+      const stageDisplay = document.getElementById('stage-display');
+      const msgCountDisplay = document.getElementById('msg-count-display');
+      
+      if (beliefDisplay) beliefDisplay.textContent = `Belief: ${Math.round((stats.belief_score || 0) * 100)}%`;
+      if (stageDisplay) stageDisplay.textContent = `Stage: ${stats.stage || 'seeker'}`;
+      if (msgCountDisplay) msgCountDisplay.textContent = `Messages: ${messages.length}`;
+      
+      // Flash effect for new message
+      if (container) {
+        container.classList.add('new-message-flash');
+        setTimeout(() => container.classList.remove('new-message-flash'), 500);
+      }
+    }
+  } catch (err) {
+    console.error('Error updating conversation:', err);
+  }
+}
+
+function exitConversation() {
+  // Stop conversation refresh
+  if (conversationRefreshInterval) {
+    clearInterval(conversationRefreshInterval);
+    conversationRefreshInterval = null;
+  }
+  currentConversationSeekerId = null;
+  currentMessageCount = 0;
+  
+  // Go back to monitor
+  loadChatMonitor();
 }
 
 // Search for a specific seeker
@@ -2972,3 +3055,4 @@ window.loadChatMonitor = loadChatMonitor;
 window.viewConversation = viewConversation;
 window.clearMonitorInterval = clearMonitorInterval;
 window.searchSeeker = searchSeeker;
+window.exitConversation = exitConversation;
