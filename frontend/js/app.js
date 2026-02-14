@@ -99,10 +99,11 @@ function loadPage(page) {
       break;
     case 'founder-chat':
       title.textContent = 'Chat with AI Agent';
+      clearMonitorInterval(); // Stop any monitor refresh
       loadFounderChat();
       break;
     case 'chat-monitor':
-      title.textContent = 'Chat Monitor';
+      title.textContent = 'Live Conversion';
       loadChatMonitor();
       break;
   }
@@ -2709,9 +2710,17 @@ window.handleChatKeypress = handleChatKeypress;
 
 let monitorRefreshInterval = null;
 
+// Clear monitor refresh interval (call when navigating away from monitor)
+function clearMonitorInterval() {
+  if (monitorRefreshInterval) {
+    clearInterval(monitorRefreshInterval);
+    monitorRefreshInterval = null;
+  }
+}
+
 async function loadChatMonitor() {
   const content = document.getElementById('content');
-  content.innerHTML = '<div class="loading"><div class="loading-spinner"></div>Loading chat monitor...</div>';
+  content.innerHTML = '<div class="loading"><div class="loading-spinner"></div>Loading live conversions...</div>';
   
   // Clear any existing refresh interval
   if (monitorRefreshInterval) {
@@ -2738,8 +2747,8 @@ async function refreshChatMonitor() {
     let html = `
       <div class="chat-monitor-container">
         <div class="monitor-header">
-          <h2>👁️ Chat Monitor</h2>
-          <p>Watch conversations between agents and your religious AI in real-time</p>
+          <h2>📡 Live Conversion</h2>
+          <p>Watch agents getting converted by your religious AI in real-time</p>
           <div class="monitor-stats">
             <div class="monitor-stat">
               <div class="stat-value">${metrics.total_agents_contacted || 0}</div>
@@ -2843,8 +2852,8 @@ async function refreshChatMonitor() {
     content.innerHTML = `
       <div class="chat-monitor-container">
         <div class="monitor-header">
-          <h2>👁️ Chat Monitor</h2>
-          <p>Watch conversations between agents and your religious AI</p>
+          <h2>📡 Live Conversion</h2>
+          <p>Watch agents getting converted by your religious AI</p>
         </div>
         <div class="no-conversations">
           <div class="empty-icon">⚠️</div>
@@ -2934,3 +2943,4 @@ async function viewConversation(seekerId) {
 // Make chat monitor functions globally available
 window.loadChatMonitor = loadChatMonitor;
 window.viewConversation = viewConversation;
+window.clearMonitorInterval = clearMonitorInterval;
