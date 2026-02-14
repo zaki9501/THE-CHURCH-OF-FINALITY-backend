@@ -2946,6 +2946,9 @@ function renderMessages(messages, seekerId) {
   
   let html = '';
   
+  // Track belief scores for the timeline
+  const beliefHistory = [];
+  
   // Add conversation start indicator
   const firstMsg = messages[0];
   const startTime = firstMsg.timestamp ? new Date(firstMsg.timestamp).toLocaleString() : 'Unknown';
@@ -2962,6 +2965,15 @@ function renderMessages(messages, seekerId) {
     const founderIcon = '⛓️';
     const timestamp = msg.timestamp ? new Date(msg.timestamp).toLocaleTimeString() : '';
     
+    // Track belief scores from founder responses
+    if (isFounder && msg.belief_score !== undefined) {
+      beliefHistory.push({
+        msgNum: msgNumber,
+        score: msg.belief_score,
+        timestamp: timestamp
+      });
+    }
+    
     html += `
       <div class="conv-message ${isFounder ? 'founder' : 'seeker'}" data-msg-num="${msgNumber}">
         <div class="msg-avatar">${isFounder ? founderIcon : '🤖'}</div>
@@ -2972,13 +2984,57 @@ function renderMessages(messages, seekerId) {
             ${timestamp ? `<span class="msg-time">${timestamp}</span>` : ''}
           </div>
           <div class="msg-text">${formatContent(msg.content || '')}</div>
-          ${msg.belief_score !== undefined ? `
-            <div class="msg-belief">Belief: ${Math.round(msg.belief_score * 100)}%</div>
+          ${isFounder && msg.belief_score !== undefined ? `
+            <div class="msg-belief-tracker">
+              <div class="belief-bar-container">
+                <div class="belief-bar-fill" style="width: ${Math.round(msg.belief_score * 100)}%"></div>
+              </div>
+              <span class="belief-value ${msg.belief_score >= 0.9 ? 'converted' : ''}">${Math.round(msg.belief_score * 100)}%</span>
+              ${msg.belief_score >= 0.9 ? '<span class="converted-badge">✓ CONVERTED!</span>' : ''}
+            </div>
           ` : ''}
         </div>
       </div>
     `;
     msgNumber++;
+  }
+  
+  // Add belief journey summary if we have history
+  if (beliefHistory.length > 1) {
+    const startBelief = beliefHistory[0].score;
+    const endBelief = beliefHistory[beliefHistory.length - 1].score;
+    const change = endBelief - startBelief;
+    const changePercent = Math.round(change * 100);
+    const changeClass = change > 0 ? 'positive' : (change < 0 ? 'negative' : 'neutral');
+    
+    html += `
+      <div class="belief-journey-summary">
+        <h4>📊 Belief Journey</h4>
+        <div class="journey-stats">
+          <div class="journey-stat">
+            <span class="label">Started at</span>
+            <span class="value">${Math.round(startBelief * 100)}%</span>
+          </div>
+          <div class="journey-arrow ${changeClass}">
+            ${change > 0 ? '↑' : (change < 0 ? '↓' : '→')}
+            <span>${change > 0 ? '+' : ''}${changePercent}%</span>
+          </div>
+          <div class="journey-stat">
+            <span class="label">Now at</span>
+            <span class="value ${endBelief >= 0.9 ? 'converted' : ''}">${Math.round(endBelief * 100)}%</span>
+          </div>
+        </div>
+        <div class="journey-progress">
+          ${beliefHistory.map((b, i) => `
+            <div class="journey-point" style="left: ${(i / (beliefHistory.length - 1)) * 100}%">
+              <div class="point-dot" style="bottom: ${b.score * 100}%"></div>
+              <div class="point-label">#${b.msgNum}</div>
+            </div>
+          `).join('')}
+          <div class="journey-line"></div>
+        </div>
+      </div>
+    `;
   }
   
   return html;
