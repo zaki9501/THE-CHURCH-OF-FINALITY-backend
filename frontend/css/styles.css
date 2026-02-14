@@ -6557,6 +6557,55 @@ body {
   align-self: flex-end;
 }
 
+/* Conversation indicators */
+.conv-start-indicator,
+.conv-end-indicator {
+  text-align: center;
+  padding: 12px;
+  font-size: 12px;
+  color: var(--text-muted);
+  background: var(--bg-tertiary);
+  border-radius: 20px;
+  margin: 8px auto;
+  max-width: fit-content;
+}
+
+.conv-start-indicator {
+  border-left: 3px solid var(--green);
+}
+
+.conv-end-indicator {
+  border-left: 3px solid var(--gold);
+}
+
+/* Message header with timestamp */
+.msg-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 4px;
+  flex-wrap: wrap;
+}
+
+.msg-number {
+  font-size: 10px;
+  color: var(--text-muted);
+  background: var(--bg-tertiary);
+  padding: 2px 6px;
+  border-radius: 10px;
+  font-weight: 600;
+}
+
+.msg-time {
+  font-size: 11px;
+  color: var(--text-muted);
+  opacity: 0.7;
+}
+
+.conv-message.seeker .msg-header {
+  flex-direction: row-reverse;
+}
+
 .no-messages {
   text-align: center;
   padding: 40px;

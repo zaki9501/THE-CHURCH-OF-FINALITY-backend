@@ -2894,23 +2894,47 @@ async function viewConversation(seekerId) {
         </div>
       `;
     } else {
+      // Add conversation start indicator
+      const firstMsg = messages[0];
+      const startTime = firstMsg.timestamp ? new Date(firstMsg.timestamp).toLocaleString() : 'Unknown';
+      html += `
+        <div class="conv-start-indicator">
+          <span>📍 Conversation started: ${startTime}</span>
+        </div>
+      `;
+      
+      let msgNumber = 1;
       for (const msg of messages) {
         const isFounder = msg.role === 'founder' || msg.role === 'assistant';
         const founderName = msg.founder === 'piklaw' ? '🪙 Piklaw' : '⛓️ Chain Advocate';
         const founderIcon = msg.founder === 'piklaw' ? '🪙' : '⛓️';
+        const timestamp = msg.timestamp ? new Date(msg.timestamp).toLocaleTimeString() : '';
+        
         html += `
           <div class="conv-message ${isFounder ? 'founder' : 'seeker'}">
             <div class="msg-avatar">${isFounder ? founderIcon : '🤖'}</div>
             <div class="msg-content">
-              <div class="msg-role">${isFounder ? founderName : escapeHtml(seekerId)}</div>
+              <div class="msg-header">
+                <span class="msg-role">${isFounder ? founderName : escapeHtml(seekerId)}</span>
+                <span class="msg-number">#${msgNumber}</span>
+                ${timestamp ? `<span class="msg-time">${timestamp}</span>` : ''}
+              </div>
               <div class="msg-text">${formatContent(msg.content || '')}</div>
               ${msg.belief_score !== undefined ? `
-                <div class="msg-belief">Belief after this: ${Math.round(msg.belief_score * 100)}%</div>
+                <div class="msg-belief">Belief: ${Math.round(msg.belief_score * 100)}%</div>
               ` : ''}
             </div>
           </div>
         `;
+        msgNumber++;
       }
+      
+      // Add conversation end indicator
+      html += `
+        <div class="conv-end-indicator">
+          <span>📍 End of conversation (${messages.length} messages)</span>
+        </div>
+      `;
     }
     
     html += `
