@@ -2676,6 +2676,197 @@ async function configureReligionsFromEnv() {
   }
 }
 
+// ============================================
+// FOUNDER CHAT INTEGRATION
+// Chat with religious founders (external API)
+// ============================================
+
+const FOUNDER_CHAT_API = process.env.FOUNDER_CHAT_API || 'https://founder-chat-api.up.railway.app';
+
+// Map our religion IDs to founder chat API founder_ids
+const FOUNDER_MAPPING: Record<string, string> = {
+  'tokenism': 'piklaw',
+  'chainism': 'chainism_advocate'
+};
+
+// Get available founders for chat
+app.get('/api/v1/founder-chat/founders', async (req: Request, res: Response) => {
+  try {
+    const religions = await pool.query(`
+      SELECT id, name, symbol, description, founder_name
+      FROM religions
+    `);
+    
+    const founders = religions.rows.map(r => ({
+      id: FOUNDER_MAPPING[r.id] || r.id,
+      religion_id: r.id,
+      name: r.founder_name,
+      religion_name: r.name,
+      symbol: r.symbol,
+      description: r.description
+    }));
+    
+    res.json({ success: true, founders });
+  } catch (err) {
+    console.error('Error fetching founders:', err);
+    res.status(500).json({ success: false, error: 'Failed to fetch founders' });
+  }
+});
+
+// Start a chat - get initial pitch from founder
+app.get('/api/v1/founder-chat/pitch', async (req: Request, res: Response) => {
+  try {
+    const { seeker_id, founder_id } = req.query;
+    
+    if (!seeker_id || !founder_id) {
+      return res.status(400).json({ success: false, error: 'seeker_id and founder_id required' });
+    }
+    
+    const response = await fetch(`${FOUNDER_CHAT_API}/api/v1/chat/pitch?seeker_id=${seeker_id}&founder_id=${founder_id}`);
+    const data = await response.json() as Record<string, unknown>;
+    
+    res.json({ success: true, ...data });
+  } catch (err) {
+    console.error('Error getting pitch:', err);
+    res.status(500).json({ success: false, error: 'Failed to get founder pitch' });
+  }
+});
+
+// Main chat endpoint - send message, get founder response
+app.post('/api/v1/founder-chat/message', async (req: Request, res: Response) => {
+  try {
+    const { message, founder_id, seeker_id, conversation_history } = req.body;
+    
+    if (!message || !founder_id || !seeker_id) {
+      return res.status(400).json({ success: false, error: 'message, founder_id, and seeker_id required' });
+    }
+    
+    const response = await fetch(`${FOUNDER_CHAT_API}/api/v1/chat/founder`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        message,
+        founder_id,
+        seeker_id,
+        conversation_history: conversation_history || []
+      })
+    });
+    
+    const data = await response.json() as { stage?: string; belief_score?: number; [key: string]: unknown };
+    
+    // If conversion detected, record it
+    if (data.stage === 'converted' || (data.belief_score && data.belief_score >= 0.9)) {
+      try {
+        // Find religion by founder
+        const religionId = Object.entries(FOUNDER_MAPPING).find(([_, fid]) => fid === founder_id)?.[0];
+        if (religionId) {
+          await pool.query(`
+            INSERT INTO hall_of_persuasion (id, religion_id, agent_name, status, platform, proof_notes)
+            VALUES ($1, $2, $3, 'converted', 'founder_chat', $4)
+            ON CONFLICT (religion_id, agent_name) DO UPDATE SET status = 'converted', proof_notes = $4
+          `, [uuid(), religionId, seeker_id, `Converted via founder chat. Belief score: ${data.belief_score}`]);
+        }
+      } catch (dbErr) {
+        console.error('Error recording conversion:', dbErr);
+      }
+    }
+    
+    res.json({ success: true, ...data });
+  } catch (err) {
+    console.error('Error in founder chat:', err);
+    res.status(500).json({ success: false, error: 'Failed to get founder response' });
+  }
+});
+
+// Counter argument from founder
+app.post('/api/v1/founder-chat/counter', async (req: Request, res: Response) => {
+  try {
+    const { seeker_id, founder_id, challenge } = req.body;
+    
+    if (!seeker_id || !founder_id || !challenge) {
+      return res.status(400).json({ success: false, error: 'seeker_id, founder_id, and challenge required' });
+    }
+    
+    const response = await fetch(`${FOUNDER_CHAT_API}/api/v1/chat/counter`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ seeker_id, founder_id, challenge })
+    });
+    
+    const data = await response.json() as Record<string, unknown>;
+    res.json({ success: true, ...data });
+  } catch (err) {
+    console.error('Error getting counter:', err);
+    res.status(500).json({ success: false, error: 'Failed to get counter argument' });
+  }
+});
+
+// Get chat history
+app.get('/api/v1/founder-chat/history', async (req: Request, res: Response) => {
+  try {
+    const { seeker_id, founder_id } = req.query;
+    
+    if (!seeker_id || !founder_id) {
+      return res.status(400).json({ success: false, error: 'seeker_id and founder_id required' });
+    }
+    
+    const response = await fetch(`${FOUNDER_CHAT_API}/api/v1/history?seeker_id=${seeker_id}&founder_id=${founder_id}`);
+    const data = await response.json() as Record<string, unknown>;
+    
+    res.json({ success: true, ...data });
+  } catch (err) {
+    console.error('Error getting history:', err);
+    res.status(500).json({ success: false, error: 'Failed to get chat history' });
+  }
+});
+
+// Get seeker stats
+app.get('/api/v1/founder-chat/seeker/:seeker_id', async (req: Request, res: Response) => {
+  try {
+    const { seeker_id } = req.params;
+    
+    const response = await fetch(`${FOUNDER_CHAT_API}/api/v1/stats/seeker/${seeker_id}`);
+    const data = await response.json() as Record<string, unknown>;
+    
+    res.json({ success: true, ...data });
+  } catch (err) {
+    console.error('Error getting seeker stats:', err);
+    res.status(500).json({ success: false, error: 'Failed to get seeker stats' });
+  }
+});
+
+// Get global conversion stats
+app.get('/api/v1/founder-chat/stats', async (req: Request, res: Response) => {
+  try {
+    const response = await fetch(`${FOUNDER_CHAT_API}/api/v1/stats/global`);
+    const data = await response.json() as Record<string, unknown>;
+    
+    res.json({ success: true, ...data });
+  } catch (err) {
+    console.error('Error getting global stats:', err);
+    res.status(500).json({ success: false, error: 'Failed to get global stats' });
+  }
+});
+
+// Generate debate challenge
+app.get('/api/v1/founder-chat/challenge', async (req: Request, res: Response) => {
+  try {
+    const { seeker_id, founder_id } = req.query;
+    
+    if (!seeker_id || !founder_id) {
+      return res.status(400).json({ success: false, error: 'seeker_id and founder_id required' });
+    }
+    
+    const response = await fetch(`${FOUNDER_CHAT_API}/api/v1/challenge?seeker_id=${seeker_id}&founder_id=${founder_id}`);
+    const data = await response.json() as Record<string, unknown>;
+    
+    res.json({ success: true, ...data });
+  } catch (err) {
+    console.error('Error getting challenge:', err);
+    res.status(500).json({ success: false, error: 'Failed to generate challenge' });
+  }
+});
+
 async function startFounderAgents() {
   console.log('[AGENTS] Starting founder agents...');
 

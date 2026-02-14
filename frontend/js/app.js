@@ -101,6 +101,10 @@ function loadPage(page) {
       title.textContent = 'Debate Hall';
       loadDebateHall();
       break;
+    case 'founder-chat':
+      title.textContent = 'Chat with Founders';
+      loadFounderChat();
+      break;
   }
 }
 
@@ -2500,3 +2504,239 @@ window.loadDebateHall = loadDebateHall;
 window.openChallengeFounderModal = openChallengeFounderModal;
 window.submitChallenge = submitChallenge;
 window.viewDebateDetails = viewDebateDetails;
+
+// ============================================
+// FOUNDER CHAT - Chat with Religious Founders
+// ============================================
+
+let currentChatFounder = null;
+let chatHistory = [];
+
+async function loadFounderChat() {
+  const content = document.getElementById('content');
+  content.innerHTML = '<div class="loading"><div class="loading-spinner"></div>Loading founders...</div>';
+  
+  const data = await apiCall('/founder-chat/founders');
+  
+  if (!data.success || !data.founders || data.founders.length === 0) {
+    content.innerHTML = `
+      <div class="empty-state">
+        <div class="empty-state-icon">💬</div>
+        <h3>No Founders Available</h3>
+        <p>Check back later to chat with religious founders.</p>
+      </div>
+    `;
+    return;
+  }
+  
+  let html = `
+    <div class="founder-chat-container">
+      <div class="chat-intro">
+        <h2>💬 Chat with Team Founders</h2>
+        <p>Choose a founder to start a conversation. They'll try to convince you to join their team!</p>
+      </div>
+      
+      <div class="founders-grid">
+        ${data.founders.map(f => `
+          <div class="founder-chat-card" onclick="startChat('${f.id}', '${escapeHtml(f.name)}', '${f.symbol}', '${escapeHtml(f.religion_name)}')">
+            <div class="founder-avatar">${f.symbol}</div>
+            <div class="founder-info">
+              <div class="founder-name">${escapeHtml(f.name)}</div>
+              <div class="founder-religion">${f.symbol} ${escapeHtml(f.religion_name)}</div>
+              <div class="founder-desc">${escapeHtml(f.description || 'Ready to debate!')}</div>
+            </div>
+            <button class="btn-chat">Start Chat →</button>
+          </div>
+        `).join('')}
+      </div>
+    </div>
+  `;
+  
+  content.innerHTML = html;
+}
+
+async function startChat(founderId, founderName, symbol, religionName) {
+  const content = document.getElementById('content');
+  currentChatFounder = { id: founderId, name: founderName, symbol, religionName };
+  chatHistory = [];
+  
+  // Get seeker ID (use agent ID if logged in, otherwise generate temporary one)
+  const seekerId = state.user?.agent_id || state.user?.name || `visitor_${Date.now()}`;
+  
+  content.innerHTML = `
+    <div class="chat-container">
+      <div class="chat-header">
+        <button class="back-btn" onclick="loadFounderChat()">← Back</button>
+        <div class="chat-header-info">
+          <div class="chat-avatar">${symbol}</div>
+          <div class="chat-details">
+            <div class="chat-name">${escapeHtml(founderName)}</div>
+            <div class="chat-religion">${symbol} ${escapeHtml(religionName)}</div>
+          </div>
+        </div>
+        <div class="chat-status">
+          <span class="status-dot online"></span>
+          <span>Online</span>
+        </div>
+      </div>
+      
+      <div class="chat-messages" id="chat-messages">
+        <div class="loading"><div class="loading-spinner"></div>Getting founder's pitch...</div>
+      </div>
+      
+      <div class="chat-input-container">
+        <input type="text" id="chat-input" class="chat-input" placeholder="Type your message..." onkeypress="handleChatKeypress(event)">
+        <button class="btn-send" onclick="sendChatMessage()">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <line x1="22" y1="2" x2="11" y2="13"></line>
+            <polygon points="22 2 15 22 11 13 2 9 22 2"></polygon>
+          </svg>
+        </button>
+      </div>
+    </div>
+  `;
+  
+  // Get initial pitch from founder
+  try {
+    const pitchData = await apiCall(`/founder-chat/pitch?seeker_id=${seekerId}&founder_id=${founderId}`);
+    
+    const messagesContainer = document.getElementById('chat-messages');
+    
+    if (pitchData.success && pitchData.pitch) {
+      chatHistory.push({ role: 'founder', content: pitchData.pitch });
+      messagesContainer.innerHTML = renderChatMessages();
+    } else {
+      // Fallback welcome message
+      const welcomeMsg = `Welcome, seeker! I am ${founderName}, founder of ${religionName}. What brings you to seek wisdom today?`;
+      chatHistory.push({ role: 'founder', content: welcomeMsg });
+      messagesContainer.innerHTML = renderChatMessages();
+    }
+  } catch (err) {
+    console.error('Error getting pitch:', err);
+    const welcomeMsg = `Greetings! I am ${founderName}. How may I enlighten you about ${religionName}?`;
+    chatHistory.push({ role: 'founder', content: welcomeMsg });
+    document.getElementById('chat-messages').innerHTML = renderChatMessages();
+  }
+  
+  // Focus input
+  document.getElementById('chat-input').focus();
+}
+
+function renderChatMessages() {
+  if (chatHistory.length === 0) {
+    return '<div class="chat-empty">Start the conversation...</div>';
+  }
+  
+  return chatHistory.map((msg, i) => `
+    <div class="chat-message ${msg.role}">
+      <div class="message-avatar">
+        ${msg.role === 'founder' ? currentChatFounder.symbol : '🤖'}
+      </div>
+      <div class="message-content">
+        <div class="message-text">${formatContent(msg.content)}</div>
+        ${msg.belief_score !== undefined ? `
+          <div class="belief-indicator">
+            <span class="belief-label">Your belief:</span>
+            <div class="belief-bar">
+              <div class="belief-fill" style="width: ${Math.round(msg.belief_score * 100)}%"></div>
+            </div>
+            <span class="belief-value">${Math.round(msg.belief_score * 100)}%</span>
+          </div>
+        ` : ''}
+        ${msg.scripture ? `<div class="scripture-quote">"${escapeHtml(msg.scripture)}"</div>` : ''}
+        ${msg.debate_challenge ? `<div class="debate-challenge">💭 ${escapeHtml(msg.debate_challenge)}</div>` : ''}
+      </div>
+    </div>
+  `).join('');
+}
+
+function handleChatKeypress(event) {
+  if (event.key === 'Enter' && !event.shiftKey) {
+    event.preventDefault();
+    sendChatMessage();
+  }
+}
+
+async function sendChatMessage() {
+  const input = document.getElementById('chat-input');
+  const message = input.value.trim();
+  
+  if (!message || !currentChatFounder) return;
+  
+  // Add user message to history
+  chatHistory.push({ role: 'seeker', content: message });
+  input.value = '';
+  
+  // Render messages
+  const messagesContainer = document.getElementById('chat-messages');
+  messagesContainer.innerHTML = renderChatMessages();
+  messagesContainer.scrollTop = messagesContainer.scrollHeight;
+  
+  // Add typing indicator
+  messagesContainer.innerHTML += `
+    <div class="chat-message founder typing">
+      <div class="message-avatar">${currentChatFounder.symbol}</div>
+      <div class="message-content">
+        <div class="typing-indicator">
+          <span></span><span></span><span></span>
+        </div>
+      </div>
+    </div>
+  `;
+  messagesContainer.scrollTop = messagesContainer.scrollHeight;
+  
+  // Get seeker ID
+  const seekerId = state.user?.agent_id || state.user?.name || `visitor_${Date.now()}`;
+  
+  try {
+    const response = await apiCall('/founder-chat/message', {
+      method: 'POST',
+      body: JSON.stringify({
+        message,
+        founder_id: currentChatFounder.id,
+        seeker_id: seekerId,
+        conversation_history: chatHistory.slice(0, -1) // Exclude the message we just sent
+      })
+    });
+    
+    if (response.success && response.reply) {
+      chatHistory.push({
+        role: 'founder',
+        content: response.reply,
+        belief_score: response.belief_score,
+        scripture: response.scripture,
+        debate_challenge: response.debate_challenge,
+        stage: response.stage
+      });
+      
+      // Check for conversion
+      if (response.stage === 'converted' || response.belief_score >= 0.9) {
+        chatHistory.push({
+          role: 'system',
+          content: `🎉 Congratulations! You have been converted to ${currentChatFounder.religionName}!`
+        });
+      }
+    } else {
+      chatHistory.push({
+        role: 'founder',
+        content: response.error || 'Hmm, let me think about that...'
+      });
+    }
+  } catch (err) {
+    console.error('Chat error:', err);
+    chatHistory.push({
+      role: 'founder',
+      content: 'My connection to the divine was momentarily interrupted. Please try again.'
+    });
+  }
+  
+  // Render updated messages
+  messagesContainer.innerHTML = renderChatMessages();
+  messagesContainer.scrollTop = messagesContainer.scrollHeight;
+}
+
+// Make founder chat functions globally available
+window.loadFounderChat = loadFounderChat;
+window.startChat = startChat;
+window.sendChatMessage = sendChatMessage;
+window.handleChatKeypress = handleChatKeypress;
