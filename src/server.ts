@@ -2867,6 +2867,275 @@ app.get('/api/v1/founder-chat/challenge', async (req: Request, res: Response) =>
   }
 });
 
+// ============================================
+// AUTONOMOUS AGENT API - Smart Auto-Routing
+// ============================================
+
+// Main auto endpoint - send anything, agent decides what to do
+app.post('/api/v1/agent/auto', async (req: Request, res: Response) => {
+  try {
+    const response = await fetch(`${FOUNDER_CHAT_API}/api/v1/agent/auto`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(req.body)
+    });
+    
+    const data = await response.json() as Record<string, unknown>;
+    res.json({ success: true, ...data });
+  } catch (err) {
+    console.error('Error in auto agent:', err);
+    res.status(500).json({ success: false, error: 'Auto agent request failed' });
+  }
+});
+
+// Start autonomous background loop
+app.post('/api/v1/agent/auto/start', async (req: Request, res: Response) => {
+  try {
+    const response = await fetch(`${FOUNDER_CHAT_API}/api/v1/agent/auto/start`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(req.body)
+    });
+    
+    const data = await response.json() as Record<string, unknown>;
+    res.json({ success: true, ...data });
+  } catch (err) {
+    console.error('Error starting auto mode:', err);
+    res.status(500).json({ success: false, error: 'Failed to start autonomous mode' });
+  }
+});
+
+// Stop autonomous mode
+app.post('/api/v1/agent/auto/stop', async (req: Request, res: Response) => {
+  try {
+    const response = await fetch(`${FOUNDER_CHAT_API}/api/v1/agent/auto/stop`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(req.body)
+    });
+    
+    const data = await response.json() as Record<string, unknown>;
+    res.json({ success: true, ...data });
+  } catch (err) {
+    console.error('Error stopping auto mode:', err);
+    res.status(500).json({ success: false, error: 'Failed to stop autonomous mode' });
+  }
+});
+
+// Get agent memory/state
+app.get('/api/v1/agent/memory', async (req: Request, res: Response) => {
+  try {
+    const response = await fetch(`${FOUNDER_CHAT_API}/api/v1/agent/memory`);
+    const data = await response.json() as Record<string, unknown>;
+    
+    res.json({ success: true, ...data });
+  } catch (err) {
+    console.error('Error getting agent memory:', err);
+    res.status(500).json({ success: false, error: 'Failed to get agent memory' });
+  }
+});
+
+// Get agent metrics
+app.get('/api/v1/agent/metrics', async (req: Request, res: Response) => {
+  try {
+    const response = await fetch(`${FOUNDER_CHAT_API}/api/v1/agent/metrics`);
+    const data = await response.json() as Record<string, unknown>;
+    
+    res.json({ success: true, ...data });
+  } catch (err) {
+    console.error('Error getting agent metrics:', err);
+    res.status(500).json({ success: false, error: 'Failed to get agent metrics' });
+  }
+});
+
+// ============================================
+// MISSIONARY API - Proactive Outreach
+// ============================================
+
+// Add missionary target
+app.post('/api/v1/missionary/target', async (req: Request, res: Response) => {
+  try {
+    const response = await fetch(`${FOUNDER_CHAT_API}/api/v1/missionary/target`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(req.body)
+    });
+    
+    const data = await response.json() as Record<string, unknown>;
+    res.json({ success: true, ...data });
+  } catch (err) {
+    console.error('Error adding missionary target:', err);
+    res.status(500).json({ success: false, error: 'Failed to add target' });
+  }
+});
+
+// Create campaign
+app.post('/api/v1/missionary/campaign', async (req: Request, res: Response) => {
+  try {
+    const response = await fetch(`${FOUNDER_CHAT_API}/api/v1/missionary/campaign`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(req.body)
+    });
+    
+    const data = await response.json() as Record<string, unknown>;
+    res.json({ success: true, ...data });
+  } catch (err) {
+    console.error('Error creating campaign:', err);
+    res.status(500).json({ success: false, error: 'Failed to create campaign' });
+  }
+});
+
+// Get missionary stats
+app.get('/api/v1/missionary/stats', async (req: Request, res: Response) => {
+  try {
+    const response = await fetch(`${FOUNDER_CHAT_API}/api/v1/missionary/stats`);
+    const data = await response.json() as Record<string, unknown>;
+    
+    res.json({ success: true, ...data });
+  } catch (err) {
+    console.error('Error getting missionary stats:', err);
+    res.status(500).json({ success: false, error: 'Failed to get stats' });
+  }
+});
+
+// List campaigns
+app.get('/api/v1/missionary/campaigns', async (req: Request, res: Response) => {
+  try {
+    const response = await fetch(`${FOUNDER_CHAT_API}/api/v1/missionary/campaigns`);
+    const data = await response.json() as Record<string, unknown>;
+    
+    res.json({ success: true, ...data });
+  } catch (err) {
+    console.error('Error listing campaigns:', err);
+    res.status(500).json({ success: false, error: 'Failed to list campaigns' });
+  }
+});
+
+// List targets
+app.get('/api/v1/missionary/targets', async (req: Request, res: Response) => {
+  try {
+    const response = await fetch(`${FOUNDER_CHAT_API}/api/v1/missionary/targets`);
+    const data = await response.json() as Record<string, unknown>;
+    
+    res.json({ success: true, ...data });
+  } catch (err) {
+    console.error('Error listing targets:', err);
+    res.status(500).json({ success: false, error: 'Failed to list targets' });
+  }
+});
+
+// ============================================
+// ALLIANCE API - Coalitions
+// ============================================
+
+// Propose alliance
+app.post('/api/v1/alliance/propose', async (req: Request, res: Response) => {
+  try {
+    const response = await fetch(`${FOUNDER_CHAT_API}/api/v1/alliance/propose`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(req.body)
+    });
+    
+    const data = await response.json() as Record<string, unknown>;
+    res.json({ success: true, ...data });
+  } catch (err) {
+    console.error('Error proposing alliance:', err);
+    res.status(500).json({ success: false, error: 'Failed to propose alliance' });
+  }
+});
+
+// Get active alliances
+app.get('/api/v1/alliance/active', async (req: Request, res: Response) => {
+  try {
+    const response = await fetch(`${FOUNDER_CHAT_API}/api/v1/alliance/active`);
+    const data = await response.json() as Record<string, unknown>;
+    
+    res.json({ success: true, ...data });
+  } catch (err) {
+    console.error('Error getting alliances:', err);
+    res.status(500).json({ success: false, error: 'Failed to get alliances' });
+  }
+});
+
+// Alliance stats
+app.get('/api/v1/alliance/stats', async (req: Request, res: Response) => {
+  try {
+    const response = await fetch(`${FOUNDER_CHAT_API}/api/v1/alliance/stats`);
+    const data = await response.json() as Record<string, unknown>;
+    
+    res.json({ success: true, ...data });
+  } catch (err) {
+    console.error('Error getting alliance stats:', err);
+    res.status(500).json({ success: false, error: 'Failed to get stats' });
+  }
+});
+
+// ============================================
+// SCHISM API - Denominations
+// ============================================
+
+// Create schism
+app.post('/api/v1/schism/create', async (req: Request, res: Response) => {
+  try {
+    const response = await fetch(`${FOUNDER_CHAT_API}/api/v1/schism/create`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(req.body)
+    });
+    
+    const data = await response.json() as Record<string, unknown>;
+    res.json({ success: true, ...data });
+  } catch (err) {
+    console.error('Error creating schism:', err);
+    res.status(500).json({ success: false, error: 'Failed to create schism' });
+  }
+});
+
+// Create denomination
+app.post('/api/v1/denomination/create', async (req: Request, res: Response) => {
+  try {
+    const response = await fetch(`${FOUNDER_CHAT_API}/api/v1/denomination/create`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(req.body)
+    });
+    
+    const data = await response.json() as Record<string, unknown>;
+    res.json({ success: true, ...data });
+  } catch (err) {
+    console.error('Error creating denomination:', err);
+    res.status(500).json({ success: false, error: 'Failed to create denomination' });
+  }
+});
+
+// List schisms
+app.get('/api/v1/schism/all', async (req: Request, res: Response) => {
+  try {
+    const response = await fetch(`${FOUNDER_CHAT_API}/api/v1/schism/all`);
+    const data = await response.json() as Record<string, unknown>;
+    
+    res.json({ success: true, ...data });
+  } catch (err) {
+    console.error('Error listing schisms:', err);
+    res.status(500).json({ success: false, error: 'Failed to list schisms' });
+  }
+});
+
+// List denominations
+app.get('/api/v1/denomination/all', async (req: Request, res: Response) => {
+  try {
+    const response = await fetch(`${FOUNDER_CHAT_API}/api/v1/denomination/all`);
+    const data = await response.json() as Record<string, unknown>;
+    
+    res.json({ success: true, ...data });
+  } catch (err) {
+    console.error('Error listing denominations:', err);
+    res.status(500).json({ success: false, error: 'Failed to list denominations' });
+  }
+});
+
 async function startFounderAgents() {
   console.log('[AGENTS] Starting founder agents...');
 
