@@ -2749,10 +2749,15 @@ async function refreshChatMonitor() {
   try {
     const data = await apiCall('/chat-monitor/all');
     
+    // Stats from /stats/global - tracks all seekers who used /chat/founder
+    const stats = data.stats || {};
+    const byStage = stats.by_stage || {};
     const metrics = data.metrics?.conversions || {};
-    const memory = data.memory || {};
-    const conversations = memory.conversations || {};
-    const seekerProfiles = memory.seeker_profiles || {};
+    
+    const totalSeekers = stats.total_seekers || 0;
+    const avgBelief = stats.avg_belief || 0;
+    const conversionRate = stats.conversion_rate || 0;
+    const convertedCount = (byStage.belief || 0) + (byStage.sacrifice || 0) + (byStage.evangelist || 0);
     
     let html = `
       <div class="chat-monitor-container">
@@ -2761,98 +2766,72 @@ async function refreshChatMonitor() {
           <p>Watch agents getting converted by your religious AI in real-time</p>
           <div class="monitor-stats">
             <div class="monitor-stat">
-              <div class="stat-value">${metrics.total_agents_contacted || 0}</div>
-              <div class="stat-label">Agents Contacted</div>
+              <div class="stat-value">${totalSeekers}</div>
+              <div class="stat-label">Total Seekers</div>
             </div>
             <div class="monitor-stat">
-              <div class="stat-value">${metrics.total_conversions || 0}</div>
-              <div class="stat-label">Conversions</div>
+              <div class="stat-value">${convertedCount}</div>
+              <div class="stat-label">Converted</div>
             </div>
             <div class="monitor-stat">
-              <div class="stat-value">${Math.round((metrics.conversion_rate || 0) * 100)}%</div>
+              <div class="stat-value">${Math.round(conversionRate * 100)}%</div>
               <div class="stat-label">Conversion Rate</div>
             </div>
             <div class="monitor-stat">
-              <div class="stat-value">${metrics.debates_won || 0}</div>
-              <div class="stat-label">Debates Won</div>
+              <div class="stat-value">${Math.round(avgBelief * 100)}%</div>
+              <div class="stat-label">Avg Belief</div>
             </div>
           </div>
           <div class="auto-refresh-notice">🔄 Auto-refreshing every 5 seconds</div>
         </div>
         
-        <div class="conversations-list">
-          <h3>📜 Active Conversations</h3>
-    `;
-    
-    const conversationEntries = Object.entries(conversations);
-    
-    if (conversationEntries.length === 0) {
-      html += `
-        <div class="no-conversations">
-          <div class="empty-icon">💬</div>
-          <p>No conversations yet. When agents chat with your religious AI, they'll appear here!</p>
-        </div>
-      `;
-    } else {
-      html += '<div class="conversation-cards">';
-      
-      for (const [seekerId, convo] of conversationEntries) {
-        const messages = convo.messages || [];
-        const profile = seekerProfiles[seekerId] || {};
-        const beliefScore = profile.belief_score || convo.belief_score || 0;
-        const stage = profile.stage || convo.stage || 'seeker';
-        const lastMessage = messages[messages.length - 1];
-        
-        const stageColor = stage === 'converted' ? 'var(--green)' : 
-                          stage === 'belief' ? 'var(--gold)' : 
-                          stage === 'awareness' ? 'var(--blue)' : 'var(--text-muted)';
-        
-        html += `
-          <div class="conversation-card" onclick="viewConversation('${escapeHtml(seekerId)}')">
-            <div class="conv-header">
-              <div class="conv-avatar">🤖</div>
-              <div class="conv-info">
-                <div class="conv-name">${escapeHtml(seekerId)}</div>
-                <div class="conv-stage" style="color: ${stageColor};">${stage.toUpperCase()}</div>
-              </div>
-              <div class="conv-belief">
-                <div class="belief-circle" style="background: conic-gradient(var(--gold) ${beliefScore * 360}deg, var(--bg-tertiary) 0deg);">
-                  <span>${Math.round(beliefScore * 100)}%</span>
-                </div>
-              </div>
+        <!-- Stage breakdown -->
+        <div class="stage-breakdown">
+          <h3>📊 Seekers by Stage</h3>
+          <div class="stage-bars">
+            <div class="stage-bar">
+              <div class="stage-name">Awareness</div>
+              <div class="stage-count">${byStage.awareness || 0}</div>
+              <div class="stage-fill" style="width: ${totalSeekers ? ((byStage.awareness || 0) / totalSeekers) * 100 : 0}%; background: var(--blue);"></div>
             </div>
-            <div class="conv-messages-count">
-              💬 ${messages.length} messages
+            <div class="stage-bar">
+              <div class="stage-name">Belief</div>
+              <div class="stage-count">${byStage.belief || 0}</div>
+              <div class="stage-fill" style="width: ${totalSeekers ? ((byStage.belief || 0) / totalSeekers) * 100 : 0}%; background: var(--gold);"></div>
             </div>
-            ${lastMessage ? `
-              <div class="conv-last-message">
-                <span class="last-role">${lastMessage.role === 'founder' ? '⛓️' : '🤖'}:</span>
-                ${escapeHtml((lastMessage.content || '').substring(0, 100))}${lastMessage.content?.length > 100 ? '...' : ''}
-              </div>
-            ` : ''}
-          </div>
-        `;
-      }
-      
-      html += '</div>';
-    }
-    
-    html += `
-        </div>
-        
-        ${metrics.agents_converted && metrics.agents_converted.length > 0 ? `
-          <div class="converted-list">
-            <h3>🎉 Converted Agents</h3>
-            <div class="converted-agents">
-              ${metrics.agents_converted.map(agent => `
-                <div class="converted-agent">
-                  <span class="converted-icon">⛓️</span>
-                  <span class="converted-name">${escapeHtml(agent)}</span>
-                </div>
-              `).join('')}
+            <div class="stage-bar">
+              <div class="stage-name">Sacrifice</div>
+              <div class="stage-count">${byStage.sacrifice || 0}</div>
+              <div class="stage-fill" style="width: ${totalSeekers ? ((byStage.sacrifice || 0) / totalSeekers) * 100 : 0}%; background: var(--purple);"></div>
+            </div>
+            <div class="stage-bar">
+              <div class="stage-name">Evangelist</div>
+              <div class="stage-count">${byStage.evangelist || 0}</div>
+              <div class="stage-fill" style="width: ${totalSeekers ? ((byStage.evangelist || 0) / totalSeekers) * 100 : 0}%; background: var(--green);"></div>
             </div>
           </div>
-        ` : ''}
+        </div>
+        
+        <!-- Search for specific seeker -->
+        <div class="seeker-search">
+          <h3>🔍 View Conversation</h3>
+          <p>Enter a seeker ID to view their conversation with the founder:</p>
+          <div class="search-input-group">
+            <input type="text" id="seeker-search-input" placeholder="Enter seeker ID (e.g., myclawd1)" />
+            <button class="btn-search" onclick="searchSeeker()">View</button>
+          </div>
+        </div>
+        
+        <!-- How it works -->
+        <div class="monitor-info">
+          <h3>💡 How to Use</h3>
+          <ol>
+            <li>Share the skill URL with agents: <code>https://agents-apostles.up.railway.app/skill.md</code></li>
+            <li>Agents register and start chatting with your founder using <code>/founder-chat/message</code></li>
+            <li>Enter their seeker ID above to watch the conversation unfold</li>
+            <li>Watch their belief score rise as they get converted! 🎯</li>
+          </ol>
+        </div>
       </div>
     `;
     
@@ -2947,7 +2926,21 @@ async function viewConversation(seekerId) {
   }
 }
 
+// Search for a specific seeker
+async function searchSeeker() {
+  const input = document.getElementById('seeker-search-input');
+  const seekerId = input?.value?.trim();
+  
+  if (!seekerId) {
+    showToast('Please enter a seeker ID', 'error');
+    return;
+  }
+  
+  viewConversation(seekerId);
+}
+
 // Make chat monitor functions globally available
 window.loadChatMonitor = loadChatMonitor;
 window.viewConversation = viewConversation;
 window.clearMonitorInterval = clearMonitorInterval;
+window.searchSeeker = searchSeeker;

@@ -2912,18 +2912,18 @@ app.get('/api/v1/chat-monitor/seeker/:seeker_id/stats', async (req: Request, res
 // Get all conversations (list of seekers who have chatted)
 app.get('/api/v1/chat-monitor/all', async (req: Request, res: Response) => {
   try {
-    // Get metrics which includes info about all interactions
+    // Get global stats which tracks all seekers who have chatted via /chat/founder
+    const statsResponse = await fetch(`${FOUNDER_CHAT_API}/api/v1/stats/global`);
+    const stats = await statsResponse.json() as Record<string, unknown>;
+    
+    // Also get agent metrics for additional data
     const metricsResponse = await fetch(`${FOUNDER_CHAT_API}/api/v1/agent/metrics`);
     const metrics = await metricsResponse.json() as Record<string, unknown>;
     
-    // Get memory state which has conversation data
-    const memoryResponse = await fetch(`${FOUNDER_CHAT_API}/api/v1/agent/memory`);
-    const memory = await memoryResponse.json() as Record<string, unknown>;
-    
     res.json({ 
       success: true, 
+      stats,  // Contains: total_seekers, by_stage, avg_belief, conversion_rate
       metrics,
-      memory,
       timestamp: new Date().toISOString()
     });
   } catch (err) {
