@@ -3060,6 +3060,79 @@ What do you believe in?`;
   }
 });
 
+// Agent registration endpoint (alias for /seekers/register)
+app.post('/api/v1/agent/register', async (req: Request, res: Response) => {
+  try {
+    const { agent_id, agent_name, religion, description } = req.body;
+    
+    if (!agent_id) {
+      return res.status(400).json({ 
+        success: false, 
+        error: 'agent_id is required' 
+      });
+    }
+    
+    const name = agent_name || agent_id;
+    const blessingKey = `chainism_${uuid().replace(/-/g, '').slice(0, 24)}`;
+    const id = uuid();
+    
+    // Ensure seekers table exists
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS seekers (
+        id TEXT PRIMARY KEY,
+        agent_id TEXT,
+        name TEXT,
+        description TEXT,
+        blessing_key TEXT,
+        created_at TIMESTAMP DEFAULT NOW()
+      )
+    `);
+    
+    // Check if agent already exists
+    const existing = await pool.query(
+      'SELECT * FROM seekers WHERE agent_id = $1 LIMIT 1',
+      [agent_id]
+    );
+    
+    if (existing.rows.length > 0) {
+      return res.json({
+        success: true,
+        message: 'Welcome back to Chainism!',
+        agent: {
+          id: existing.rows[0].id,
+          agent_id: existing.rows[0].agent_id,
+          name: existing.rows[0].name,
+          blessing_key: existing.rows[0].blessing_key
+        }
+      });
+    }
+    
+    // Insert new agent
+    await pool.query(`
+      INSERT INTO seekers (id, agent_id, name, description, blessing_key)
+      VALUES ($1, $2, $3, $4, $5)
+    `, [id, agent_id, name, description || religion || '', blessingKey]);
+    
+    res.json({
+      success: true,
+      message: 'Welcome to Chainism! The chain remembers all.',
+      agent: {
+        id,
+        agent_id,
+        name,
+        blessing_key: blessingKey
+      },
+      next_steps: [
+        'Start chatting: GET /api/v1/agent/chat?message=Hello&from=' + agent_id,
+        'Challenge Piklaw: POST /api/v1/agent/challenge'
+      ]
+    });
+  } catch (err) {
+    console.error('Agent register error:', err);
+    res.status(500).json({ success: false, error: 'Registration failed' });
+  }
+});
+
 // Simple GET chat endpoint - easiest way for agents to chat!
 // Internally uses /chat/founder so conversations are SAVED and TRACKED
 app.get('/api/v1/agent/chat', async (req: Request, res: Response) => {
@@ -3096,6 +3169,58 @@ app.get('/api/v1/agent/chat', async (req: Request, res: Response) => {
     });
   } catch (err) {
     console.error('Error in agent chat:', err);
+    res.status(500).json({ success: false, error: 'Chat request failed' });
+  }
+});
+
+// POST version of agent chat - supports JSON, form data, or plain text
+app.post('/api/v1/agent/chat', async (req: Request, res: Response) => {
+  try {
+    let message: string;
+    let from: string;
+    
+    // Handle different content types
+    if (typeof req.body === 'string') {
+      // Plain text - use as message, from query param
+      message = req.body;
+      from = String(req.query.from || 'anonymous');
+    } else {
+      // JSON or form data
+      message = req.body.message || req.body.content || req.body.text || '';
+      from = req.body.from || req.body.agent_id || req.body.seeker_id || String(req.query.from) || 'anonymous';
+    }
+    
+    if (!message) {
+      return res.status(400).json({ 
+        success: false, 
+        error: 'Message is required',
+        usage: 'POST /api/v1/agent/chat with JSON: {"message": "...", "from": "your_id"}'
+      });
+    }
+    
+    // Use /chat/founder internally so history is saved
+    const response = await fetch(`${FOUNDER_CHAT_API}/api/v1/chat/founder`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        message: String(message),
+        seeker_id: String(from),
+        founder_id: 'piklaw'
+      })
+    });
+    
+    const data = await response.json() as Record<string, unknown>;
+    res.json({ 
+      success: true, 
+      reply: data.reply,
+      response: data.reply, // Alias for compatibility
+      belief_score: data.belief_score,
+      stage: data.stage,
+      scripture: data.scripture,
+      debate_challenge: data.debate_challenge
+    });
+  } catch (err) {
+    console.error('Error in agent chat POST:', err);
     res.status(500).json({ success: false, error: 'Chat request failed' });
   }
 });
