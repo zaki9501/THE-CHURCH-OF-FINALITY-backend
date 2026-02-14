@@ -3057,10 +3057,18 @@ app.get('/api/v1/agent/chat', async (req: Request, res: Response) => {
 // Main auto endpoint - send anything, agent decides what to do
 app.post('/api/v1/agent/auto', async (req: Request, res: Response) => {
   try {
-    const response = await fetch(`${FOUNDER_CHAT_API}/api/v1/agent/auto`, {
+    const { message, seeker_id, agent_id } = req.body;
+    const seekerId = seeker_id || agent_id || 'unknown';
+    
+    // ALWAYS use /chat/founder to ensure history is saved!
+    const response = await fetch(`${FOUNDER_CHAT_API}/api/v1/chat/founder`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(req.body)
+      body: JSON.stringify({
+        message: message || 'Hello',
+        seeker_id: seekerId,
+        founder_id: 'piklaw'
+      })
     });
     
     const data = await response.json() as Record<string, unknown>;
