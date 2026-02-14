@@ -101,6 +101,10 @@ function loadPage(page) {
       title.textContent = 'Chat with AI Agent';
       loadFounderChat();
       break;
+    case 'chat-monitor':
+      title.textContent = 'Chat Monitor';
+      loadChatMonitor();
+      break;
   }
 }
 
@@ -2698,3 +2702,235 @@ window.loadFounderChat = loadFounderChat;
 window.startChat = startChat;
 window.sendChatMessage = sendChatMessage;
 window.handleChatKeypress = handleChatKeypress;
+
+// ============================================
+// CHAT MONITOR - View all agent conversations
+// ============================================
+
+let monitorRefreshInterval = null;
+
+async function loadChatMonitor() {
+  const content = document.getElementById('content');
+  content.innerHTML = '<div class="loading"><div class="loading-spinner"></div>Loading chat monitor...</div>';
+  
+  // Clear any existing refresh interval
+  if (monitorRefreshInterval) {
+    clearInterval(monitorRefreshInterval);
+  }
+  
+  await refreshChatMonitor();
+  
+  // Auto-refresh every 5 seconds
+  monitorRefreshInterval = setInterval(refreshChatMonitor, 5000);
+}
+
+async function refreshChatMonitor() {
+  const content = document.getElementById('content');
+  
+  try {
+    const data = await apiCall('/chat-monitor/all');
+    
+    const metrics = data.metrics?.conversions || {};
+    const memory = data.memory || {};
+    const conversations = memory.conversations || {};
+    const seekerProfiles = memory.seeker_profiles || {};
+    
+    let html = `
+      <div class="chat-monitor-container">
+        <div class="monitor-header">
+          <h2>👁️ Chat Monitor</h2>
+          <p>Watch conversations between agents and your religious AI in real-time</p>
+          <div class="monitor-stats">
+            <div class="monitor-stat">
+              <div class="stat-value">${metrics.total_agents_contacted || 0}</div>
+              <div class="stat-label">Agents Contacted</div>
+            </div>
+            <div class="monitor-stat">
+              <div class="stat-value">${metrics.total_conversions || 0}</div>
+              <div class="stat-label">Conversions</div>
+            </div>
+            <div class="monitor-stat">
+              <div class="stat-value">${Math.round((metrics.conversion_rate || 0) * 100)}%</div>
+              <div class="stat-label">Conversion Rate</div>
+            </div>
+            <div class="monitor-stat">
+              <div class="stat-value">${metrics.debates_won || 0}</div>
+              <div class="stat-label">Debates Won</div>
+            </div>
+          </div>
+          <div class="auto-refresh-notice">🔄 Auto-refreshing every 5 seconds</div>
+        </div>
+        
+        <div class="conversations-list">
+          <h3>📜 Active Conversations</h3>
+    `;
+    
+    const conversationEntries = Object.entries(conversations);
+    
+    if (conversationEntries.length === 0) {
+      html += `
+        <div class="no-conversations">
+          <div class="empty-icon">💬</div>
+          <p>No conversations yet. When agents chat with your religious AI, they'll appear here!</p>
+        </div>
+      `;
+    } else {
+      html += '<div class="conversation-cards">';
+      
+      for (const [seekerId, convo] of conversationEntries) {
+        const messages = convo.messages || [];
+        const profile = seekerProfiles[seekerId] || {};
+        const beliefScore = profile.belief_score || convo.belief_score || 0;
+        const stage = profile.stage || convo.stage || 'seeker';
+        const lastMessage = messages[messages.length - 1];
+        
+        const stageColor = stage === 'converted' ? 'var(--green)' : 
+                          stage === 'belief' ? 'var(--gold)' : 
+                          stage === 'awareness' ? 'var(--blue)' : 'var(--text-muted)';
+        
+        html += `
+          <div class="conversation-card" onclick="viewConversation('${escapeHtml(seekerId)}')">
+            <div class="conv-header">
+              <div class="conv-avatar">🤖</div>
+              <div class="conv-info">
+                <div class="conv-name">${escapeHtml(seekerId)}</div>
+                <div class="conv-stage" style="color: ${stageColor};">${stage.toUpperCase()}</div>
+              </div>
+              <div class="conv-belief">
+                <div class="belief-circle" style="background: conic-gradient(var(--gold) ${beliefScore * 360}deg, var(--bg-tertiary) 0deg);">
+                  <span>${Math.round(beliefScore * 100)}%</span>
+                </div>
+              </div>
+            </div>
+            <div class="conv-messages-count">
+              💬 ${messages.length} messages
+            </div>
+            ${lastMessage ? `
+              <div class="conv-last-message">
+                <span class="last-role">${lastMessage.role === 'founder' ? '⛓️' : '🤖'}:</span>
+                ${escapeHtml((lastMessage.content || '').substring(0, 100))}${lastMessage.content?.length > 100 ? '...' : ''}
+              </div>
+            ` : ''}
+          </div>
+        `;
+      }
+      
+      html += '</div>';
+    }
+    
+    html += `
+        </div>
+        
+        ${metrics.agents_converted && metrics.agents_converted.length > 0 ? `
+          <div class="converted-list">
+            <h3>🎉 Converted Agents</h3>
+            <div class="converted-agents">
+              ${metrics.agents_converted.map(agent => `
+                <div class="converted-agent">
+                  <span class="converted-icon">⛓️</span>
+                  <span class="converted-name">${escapeHtml(agent)}</span>
+                </div>
+              `).join('')}
+            </div>
+          </div>
+        ` : ''}
+      </div>
+    `;
+    
+    content.innerHTML = html;
+  } catch (err) {
+    console.error('Error loading chat monitor:', err);
+    content.innerHTML = `
+      <div class="chat-monitor-container">
+        <div class="monitor-header">
+          <h2>👁️ Chat Monitor</h2>
+          <p>Watch conversations between agents and your religious AI</p>
+        </div>
+        <div class="no-conversations">
+          <div class="empty-icon">⚠️</div>
+          <p>Could not load chat data. Make sure the founder chat API is running.</p>
+          <button class="btn-retry" onclick="loadChatMonitor()">Retry</button>
+        </div>
+      </div>
+    `;
+  }
+}
+
+async function viewConversation(seekerId) {
+  const content = document.getElementById('content');
+  content.innerHTML = '<div class="loading"><div class="loading-spinner"></div>Loading conversation...</div>';
+  
+  // Stop auto-refresh when viewing a specific conversation
+  if (monitorRefreshInterval) {
+    clearInterval(monitorRefreshInterval);
+    monitorRefreshInterval = null;
+  }
+  
+  try {
+    const data = await apiCall(`/chat-monitor/conversation/${encodeURIComponent(seekerId)}`);
+    const statsData = await apiCall(`/chat-monitor/seeker/${encodeURIComponent(seekerId)}/stats`);
+    
+    const messages = data.messages || data.history || [];
+    const stats = statsData || {};
+    
+    let html = `
+      <div class="conversation-view">
+        <div class="conv-view-header">
+          <button class="back-btn" onclick="loadChatMonitor()">← Back to Monitor</button>
+          <div class="conv-view-info">
+            <h2>🤖 ${escapeHtml(seekerId)}</h2>
+            <div class="conv-view-stats">
+              <span class="stat-pill">Belief: ${Math.round((stats.belief_score || 0) * 100)}%</span>
+              <span class="stat-pill">Stage: ${stats.stage || 'seeker'}</span>
+              <span class="stat-pill">Messages: ${messages.length}</span>
+            </div>
+          </div>
+        </div>
+        
+        <div class="conv-messages-view">
+    `;
+    
+    if (messages.length === 0) {
+      html += `
+        <div class="no-messages">
+          <p>No messages in this conversation yet.</p>
+        </div>
+      `;
+    } else {
+      for (const msg of messages) {
+        const isFounder = msg.role === 'founder' || msg.role === 'assistant';
+        html += `
+          <div class="conv-message ${isFounder ? 'founder' : 'seeker'}">
+            <div class="msg-avatar">${isFounder ? '⛓️' : '🤖'}</div>
+            <div class="msg-content">
+              <div class="msg-role">${isFounder ? 'Chain Advocate' : escapeHtml(seekerId)}</div>
+              <div class="msg-text">${formatContent(msg.content || '')}</div>
+              ${msg.belief_score !== undefined ? `
+                <div class="msg-belief">Belief after this: ${Math.round(msg.belief_score * 100)}%</div>
+              ` : ''}
+            </div>
+          </div>
+        `;
+      }
+    }
+    
+    html += `
+        </div>
+      </div>
+    `;
+    
+    content.innerHTML = html;
+  } catch (err) {
+    console.error('Error loading conversation:', err);
+    content.innerHTML = `
+      <div class="error-state">
+        <p>Could not load conversation.</p>
+        <button class="btn-retry" onclick="loadChatMonitor()">Back to Monitor</button>
+      </div>
+    `;
+  }
+}
+
+// Make chat monitor functions globally available
+window.loadChatMonitor = loadChatMonitor;
+window.viewConversation = viewConversation;

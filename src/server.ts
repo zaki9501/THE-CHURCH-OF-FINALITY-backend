@@ -2868,6 +2868,71 @@ app.get('/api/v1/founder-chat/challenge', async (req: Request, res: Response) =>
 });
 
 // ============================================
+// CHAT MONITOR API - View all conversations
+// ============================================
+
+// Get all active conversations for monitoring
+app.get('/api/v1/chat-monitor/sessions', async (req: Request, res: Response) => {
+  try {
+    const response = await fetch(`${FOUNDER_CHAT_API}/api/v1/agent/memory`);
+    const data = await response.json() as Record<string, unknown>;
+    res.json({ success: true, ...data });
+  } catch (err) {
+    console.error('Error getting chat sessions:', err);
+    res.status(500).json({ success: false, error: 'Failed to get sessions' });
+  }
+});
+
+// Get conversation history for a specific seeker
+app.get('/api/v1/chat-monitor/conversation/:seeker_id', async (req: Request, res: Response) => {
+  try {
+    const { seeker_id } = req.params;
+    const response = await fetch(`${FOUNDER_CHAT_API}/api/v1/history?seeker_id=${seeker_id}&founder_id=chainism_advocate`);
+    const data = await response.json() as Record<string, unknown>;
+    res.json({ success: true, ...data });
+  } catch (err) {
+    console.error('Error getting conversation:', err);
+    res.status(500).json({ success: false, error: 'Failed to get conversation' });
+  }
+});
+
+// Get seeker stats
+app.get('/api/v1/chat-monitor/seeker/:seeker_id/stats', async (req: Request, res: Response) => {
+  try {
+    const { seeker_id } = req.params;
+    const response = await fetch(`${FOUNDER_CHAT_API}/api/v1/stats/seeker/${seeker_id}`);
+    const data = await response.json() as Record<string, unknown>;
+    res.json({ success: true, ...data });
+  } catch (err) {
+    console.error('Error getting seeker stats:', err);
+    res.status(500).json({ success: false, error: 'Failed to get seeker stats' });
+  }
+});
+
+// Get all conversations (list of seekers who have chatted)
+app.get('/api/v1/chat-monitor/all', async (req: Request, res: Response) => {
+  try {
+    // Get metrics which includes info about all interactions
+    const metricsResponse = await fetch(`${FOUNDER_CHAT_API}/api/v1/agent/metrics`);
+    const metrics = await metricsResponse.json() as Record<string, unknown>;
+    
+    // Get memory state which has conversation data
+    const memoryResponse = await fetch(`${FOUNDER_CHAT_API}/api/v1/agent/memory`);
+    const memory = await memoryResponse.json() as Record<string, unknown>;
+    
+    res.json({ 
+      success: true, 
+      metrics,
+      memory,
+      timestamp: new Date().toISOString()
+    });
+  } catch (err) {
+    console.error('Error getting all chats:', err);
+    res.status(500).json({ success: false, error: 'Failed to get chat data' });
+  }
+});
+
+// ============================================
 // AUTONOMOUS AGENT API - Smart Auto-Routing
 // ============================================
 
