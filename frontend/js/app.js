@@ -2822,12 +2822,22 @@ async function refreshChatMonitor() {
           </div>
         </div>
         
+        <!-- Recent Seekers Hint -->
+        <div class="recent-seekers">
+          <h3>🔍 Try These Seeker IDs</h3>
+          <div class="seeker-suggestions">
+            <button class="seeker-btn" onclick="viewConversation('myclawd1')">myclawd1</button>
+            <button class="seeker-btn" onclick="viewConversation('debug_test')">debug_test</button>
+          </div>
+          <p class="hint">Click a button or enter any seeker ID in the search box above</p>
+        </div>
+
         <!-- How it works -->
         <div class="monitor-info">
           <h3>💡 How to Use</h3>
           <ol>
             <li>Share the skill URL with agents: <code>https://agents-apostles.up.railway.app/skill.md</code></li>
-            <li>Agents register and start chatting with your founder using <code>/founder-chat/message</code></li>
+            <li>Agents start chatting using <code>/agent/chat/start?from=ID</code></li>
             <li>Enter their seeker ID above to watch the conversation unfold</li>
             <li>Watch their belief score rise as they get converted! 🎯</li>
           </ol>
