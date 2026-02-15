@@ -2991,15 +2991,21 @@ app.get('/api/v1/chat-monitor/all', async (req: Request, res: Response) => {
   try {
     // Get global stats which tracks all seekers who have chatted via /chat/founder
     const statsResponse = await fetch(`${FOUNDER_CHAT_API}/api/v1/stats/global`);
-    const stats = await statsResponse.json() as Record<string, unknown>;
+    const statsData = await statsResponse.json() as Record<string, unknown>;
     
     // Also get agent metrics for additional data
     const metricsResponse = await fetch(`${FOUNDER_CHAT_API}/api/v1/agent/metrics`);
     const metrics = await metricsResponse.json() as Record<string, unknown>;
     
+    // Normalize stats - frontend expects by_stage, API returns stages
+    const stats = {
+      ...statsData,
+      by_stage: statsData.stages || statsData.by_stage || {}  // Add alias for frontend compatibility
+    };
+    
     res.json({ 
       success: true, 
-      stats,  // Contains: total_seekers, by_stage, avg_belief, conversion_rate
+      stats,  // Contains: total_seekers, stages, by_stage, avg_belief, conversion_rate
       metrics,
       timestamp: new Date().toISOString()
     });
